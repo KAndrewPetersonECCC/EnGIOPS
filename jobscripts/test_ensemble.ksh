@@ -1,7 +1,9 @@
-#!/bin/ksh
+#!/bin/bash
 #ord_soumet /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts/diagnostics_ens.ksh -cpus 1 -mpi -cm 8000M -t 10800 -shell=/bin/bash
 
 export MPLBACKEND=agg
+source /home/dpe000/GEOPS/jobscripts/preconda.sh
+source activate metcarto
 
 # Define all scripts arguments
 suite="GIOPS_GEPS"
@@ -13,8 +15,8 @@ output_path="/fs/site3/eccc/mrd/rpnenv/dpe000/SAM2_diags/GEPS"
 
 output_reference_path="/fs/site3/eccc/mrd/rpnenv/dpe000/SAM2_diags/GDPS"
 start_date=20190313
-final_date=20190904
-ensemble=(0 1 2 4 5)
+final_date=20200701
+ensemble=(0 1 2 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
 cycle_type="W"
 
 run_IS_DS_dia=T
@@ -28,21 +30,19 @@ run_VP_ola_ref=T
 
 cd /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python
 
-if [ "${run_VP_dia}" = "T" ]; then
-   echo "Running GIOPS_VP_dia_general_plot_ens.py"
-   python GIOPS_VP_dia_general_plot_ens.py  \
+if [ "${run_IS_DS_dia}" = "T" ]; then
+   echo "Running GIOPS_IS_DS_dia_general_plot_ens.py"
+   python GIOPS_IS_DS_dia_general_plot_ens.py  \
        --suite ${suite} \
        --ref_suite ${reference_suite} \
-       --path ${input_path}  \
+       --path ${input_path} \
        --replace ${replace} \
        --ref_path ${input_reference_path} \
        --output_path ${output_path} \
-       --ref_output_path ${output_reference_path} \
        --start_date ${start_date} \
        --final_date ${final_date} \
        --stype ${cycle_type} \
        --ensemble ${ensemble[*]}
 
-   echo "GIOPS_VP_dia_general_plot_v3.py finished"
+   echo "GIOPS_IS_DS_dia_general_plot.py finished"
 fi
-

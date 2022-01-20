@@ -74,12 +74,12 @@ def plot_SST_misfit_rms_difference_map(df1, df2, typ):
     colors = df2['new_rms'].values - df1['new_rms'].values
     cmap   = cm.get_cmap("bwr", len(clevs))
     im = m.scatter(x, y, 10, marker='s', c=colors, cmap=cmap, norm=norm, ax=ax)
-
+    normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
     cax, kw = matplotlib.colorbar.make_axes(ax, location='bottom', pad=0.15, shrink=0.8, fraction=0.05)
-    cb = plt.colorbar(im, cax=cax, orientation='horizontal')
-
- 
-
+    c = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=normalize, orientation='horizontal', extend='both')
+    #cb = plt.colorbar(im, cax=cax, orientation='horizontal')
+    c.ax.annotate('better', xy=(0.86, 1.2), xycoords='axes fraction')
+    c.ax.annotate('worse', xy=(0.05, 1.2), xycoords='axes fraction')
 
 #    norm = matplotlib.colors.Normalize(vmin = -0.2, vmax = 0.2, clip = False)
 #    colors = plt.cm.coolwarm(norm(df2['new_rms'].values - df1['new_rms'].values))
@@ -96,8 +96,6 @@ def plot_SST_misfit_rms_difference_map(df1, df2, typ):
         plt.savefig(output_dir +'/GEN_SST_' + sdate + '_' + fdate + '_RMS_DIFF_map.png')
     elif typ == 'SST_NIGHT':
         plt.savefig(output_dir +'/GEN_SST_NIGHT_' + sdate + '_' + fdate + '_RMS_DIFF_map.png')
-
-
 
 
 # Setting and parsing arguments

@@ -1,0 +1,221 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <title>STOCHASTIC PARAMETERS QUICK CHECK </title>
+    <style type="text/css">
+      .blue{color:blue}
+      .red{color:red}
+    </style>
+    <script language="JavaScript">
+
+      file_missing="images/yinyang.png";
+      file_initial1="../PLOTS_s3/B.TM_glo_err_leads.png";
+      file_initial2="../PLOTS_s3/B.TM_glo_err_01.png";
+      file1="";
+
+      function Alert_File() {
+      alert(file1);
+      alert(file2);
+      }
+
+      function obj_inc(inc,obj) {
+ 
+      ind=obj.options.selectedIndex;
+ 
+      ind_=ind;
+
+      ind=ind+inc;      
+
+      obj.options.selectedIndex=ind;
+
+      obj.options.selectedIndex=ind;
+
+      if ( ind == ind_ ){ 
+      alert(message);
+      }else{
+      Refresh();
+      }
+
+      }
+
+      function figure_initiale() {
+
+      document.form.expt.options.selectedIndex=0;
+      document.form.vari.options.selectedIndex=0;
+
+      Refresh();
+
+      }
+
+      function GetFileName(){
+
+      expt=document.form.expt.options[document.form.expt.options.selectedIndex].value;
+      vari=document.form.vari.options[document.form.vari.options.selectedIndex].value;
+     
+      file1="../SDIF/"+vari+"."+expt+".png";
+
+      }
+
+      function Refresh(){
+
+      TheImage1 = new Image();
+
+      GetFileName();
+
+      TheImage1.src=file1;
+
+      TheImage1.onerror=Not_Available1();
+
+      document.carte1.src=TheImage1.src;
+     
+      changeExptText()
+      changeVariText()
+
+      }
+
+      function Not_Available1() {
+      document.carte1.src=file_missing;
+      }
+
+      function changeVariText(){
+        if ( vari == 'SST' ){VariableName='SST'}
+	if ( vari == 'SSS' ){VariableName='SSS'}
+	if ( vari == 'TD1' ){VariableName='1-10m T'}
+	if ( vari == 'SD1' ){VariableName='1-10m S'}
+	if ( vari == 'TC1' ){VariableName='10-100m T'}
+	if ( vari == 'SC1' ){VariableName='10-100m S'}
+	if ( vari == 'TC5' ){VariableName='100-500m T'}
+	if ( vari == 'SC5' ){VariableName='100-500m S'}
+	document.getElementById('VariableName').innerHTML = VariableName;
+      }
+      function changeExptText(){
+        ExperimtName=expt
+	document.getElementById('ExperimtName').innerHTML = ExperimtName;
+      }
+    </script>
+  </head>
+
+  <body onload="figure_initiale();">
+ 
+      <h1> <b id=ExperimtName> STOP.1 </b> </h1>
+      <h1> <b id=VariableName> SST</b> difference from  ref </h1>
+
+    <form name="form">
+      <table>
+	<tbody>
+	  <tr>
+	    <td>
+	      <h3>
+	      <table>
+		<tbody>
+		  <tr>
+		    <td>
+		      <select name="expt" onclick="Refresh()">
+                        <option value="STOP.1"> STOP.1 </option>
+                        <option value="STOP.2"> STOP.2 </option>
+                        <option value="STOP.3"> STOP.3 </option>
+                        <option value="STOP.4"> STOP.4 </option>
+                        <option value="STOP.5"> STOP.5 </option>
+                        <option value="STOP.6"> STOP.6 </option>
+                        <option value="STOP.7"> STOP.7 : ln_sppt_dynldf  = .true.!! Switch for lateral diffusion</option>
+                        <option value="STOP.8"> STOP.8 : ln_sppt_traldf = .true.! Switch for lateral diffusion</option>
+                        <option value="STOP.9"> STOP.9 : ln_sppt_trazdf = .true.! Switch for vertical diffusion</option>
+                        <option value="STOP.10"> STOP.10 : ln_sppt_trazdfp = .true.!! Switch for pure vertical diffusion</option>
+                        <option value="STOP.11"> STOP.11 : ln_sppt_traevd = .true. !! Switch for enhanced vertical diffusion</option>
+                        <option value="STOP.12"> STOP.12 : ln_sppt_trabbc = .true. !! Switch for bottom boundary condition</option>
+                        <option value="STOP.13"> STOP.13 : ln_sppt_trabbl = .true. !! Switch for bottom boundary layer</option>
+                        <option value="STOP.14"> STOP.14 : ln_sppt_tranpcb= .true. !! Switch for non-penetrative convection</option>
+                        <option value="STOP.15"> STOP.15 : ln_sppt_tradmp = .true. !! Switch for tracer damping (OFF)</option>
+                        <option value="STOP.16"> STOP.16 : ln_sppt_traqsr = .true. !! Switch for solar radiation</option>
+                        <option value="STOP.17"> STOP.17 : ln_sppt_transr = .true. !! Switch for non-solar radiation / freshwater flux</option>
+                        <option value="STOP.18"> STOP.18 : ln_sppt_traatf= .true.!! Switch for Asselin time-filter</option>
+                        <option value="STOP.19"> STOP.19 : ln_sppt_dynzad       = .true.</option>
+                        <option value="STOP.20"> STOP.20 : Likely Combination of sppt </option>
+                        <option value="STOQ.A0"> STOQ.A0 : All SPP</option>
+                        <option value="STOQ.A1"> STOQ.A1 : nn_spp_avt = 2</option>
+                        <option value="STOQ.A2"> STOQ.A2 : nn_spp_avm = 2</option>
+                        <option value="STOQ.A3"> STOQ.A3 : nn_spp_ahvu = 2</option>
+                        <option value="STOQ.A4"> STOQ.A4 : nn_spp_ahvv = 2</option>
+                        <option value="STOQ.A5"> STOQ.A5 : nn_spp_ahvw = 2</option>
+                        <option value="STOQ.A6"> STOQ.A6 : nn_spp_ahvt = 2</option>
+                        <option value="STOQ.A7"> STOQ.A7 : nn_spp_ahvX = 2</option>
+                        <option value="STOQ.A8"> STOQ.A8 : nn_spp_arnf = 2</option>
+                        <option value="STOQ.A9"> STOQ.A9:  nn_spp_aevd = 2</option>
+                        <option value="STOQ.A10"> STOQ.A10 : nn_spp_tkelc = 2</option>
+                        <option value="STOQ.A11"> STOQ.A11 : nn_spp_tkeds = 2</option>
+                        <option value="STOQ.A12"> STOQ.A12 : nn_spp_ahubbl = 2nn_spp_tkefr = 2</option>
+                        <option value="STOQ.A13"> STOQ.A13 : ALL TKE</option>
+                        <option value="STOQ.A14"> STOQ.A14 : nn_spp_ahubbl = 2</option>
+                        <option value="STOQ.A15"> STOQ.A15 : nn_spp_ahubbl = 2</option>
+                        <option value="STOQ.A16"> STOQ.A16 : nn_spp_ah[uv]bbl = 2</option>
+                        <option value="STOR.0"> STOR.0 : Null Experiment</option>
+                        <option value="STOR.1"> STOR.1 : ln_skeb = true </option>
+                        <option value="STO0.0"> STO0.0 : Ensemble 0 </option>
+                        <option value="STO1.0"> STO0.0 : Ensemble 1 </option>
+                        <option value="STO2.0"> STO0.0 : Ensemble 2 </option>
+ 		      </select>
+		    </td>
+		    <td>
+		      <input onclick="obj_inc(-1,document.form.expt);" type="button" value=" &lt; "> 
+		      <input onclick="obj_inc(1,document.form.expt);" type="button" value=" &gt; "> 
+		    </td>
+		  </tr>
+		  <tr>
+		    <td>
+		      <select name="vari" onclick="Refresh()">
+                        <option value="SST"> SST </option>
+                        <option value="SSS"> SSS </option>
+                        <option value="TD1"> 1-10m Temperature </option>
+                        <option value="SD1"> 1-10m Salinity </option>
+                        <option value="TC1"> 10-100m Temperature </option>
+                        <option value="SC1"> 10-100m Salinity </option>
+                        <option value="TC5"> 100-500m Temperature </option>
+                        <option value="SC5"> 100-500m Salinity </option>
+ 		      </select>
+		    </td>
+		    <td>
+		      <input onclick="obj_inc(-1,document.form.vari);" type="button" value=" &lt; "> 
+		      <input onclick="obj_inc(1,document.form.vari);" type="button" value=" &gt; "> 
+		    </td>
+		  </tr>
+		</tbody>
+	      </table>
+	      <input onclick="Refresh()" type="button" value="REFRESH">
+	      <table>
+	      </table>
+	      <input onclick="Alert_File();" type="button" value="File Name">
+	      <table>
+		<tbody>
+		  <tr>
+		  </tr>
+		</tbody>
+	      </table>
+	    </h3>
+	    </td>
+	  </tr>
+	</tbody>
+      </table>
+    </form>
+
+<centre>
+<table style="width:100%">
+  <tr>
+    <th> 
+      <b id='ExperimtName'>  </b>
+    </th>
+  </tr>
+  <tr>
+    <th> 
+      <b id='VariableName'> difference from reference </b>
+    </th>
+  </tr>
+  <tr>
+    <td align="center">
+ <img name="carte1" src="../SDIF/SST.STOP.1.png" height="400">
+    </td>
+  </tr>  
+</table>
+</centre>
+
+  </body>
+</html>

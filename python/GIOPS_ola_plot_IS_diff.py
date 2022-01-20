@@ -50,8 +50,8 @@ def plot_IS_misfit_rms_difference_map(df1, df2, inst):
     '''
     print 'Producing figure for ' + inst 
     
-    df1['lon_int'][df1['lon_int'] < 0] += 360                
-    df2['lon_int'][df2['lon_int'] < 0] += 360                
+    df1['lon_int'][df1['lon_int'] < 0] += 360
+    df2['lon_int'][df2['lon_int'] < 0] += 360
     
     # Merge the two dataframes
     df = pd.merge(df1, df2, on=['lat_int', 'lon_int'], how='inner')
@@ -61,8 +61,9 @@ def plot_IS_misfit_rms_difference_map(df1, df2, inst):
     x, y = m( df['lon_int'].values, df['lat_int'].values)
     fig = plt.figure(figsize=(10, 6)); ax = fig.gca() 
     #fig = plt.figure(figsize=(8, 8)) 
-    plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : '+inst+ ' misfit rms difference in cm', fontsize=16, ha='center')
-    plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
+    #plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : '+inst+ ' misfit rms difference in cm', fontsize=16, ha='center')
+    plt.figtext(0.5, 0.90, suite_name + ' vs ' + ref_suite_name +' : '+inst+ ' misfit rms difference in cm', fontsize=16, ha='center')
+    #plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
     m.drawcoastlines()
     m.fillcontinents(color='white', zorder=1)
     # draw parallels and meridians.
@@ -77,9 +78,13 @@ def plot_IS_misfit_rms_difference_map(df1, df2, inst):
     colors = df['new_rms_y'].values - df['new_rms_x'].values
     cmap   = cm.get_cmap("bwr", len(clevs))
     im = m.scatter(x, y, 10, marker='s', c=colors, cmap=cmap, norm=norm, ax=ax)
-
+    normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
     cax, kw = matplotlib.colorbar.make_axes(ax, location='bottom', pad=0.15, shrink=0.8, fraction=0.05)
-    cb = plt.colorbar(im, cax=cax, orientation='horizontal')
+    c = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=normalize, orientation='horizontal', extend='both')
+    c.ax.annotate('better', xy=(0.86, 1.2), xycoords='axes fraction')
+    c.ax.annotate('worse', xy=(0.05, 1.2), xycoords='axes fraction')
+    
+#    cb = plt.colorbar(im, cax=cax, orientation='horizontal')
 
 
 
@@ -160,6 +165,12 @@ with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_C2.pk
 with open(ref_input_dir + 'save_' + ref_suite_name + '_' + sdate + '_' + fdate + '_C2.pkl', 'rb') as fs:
     df_r_C2_global = pickle.load(fs)
 
+#C2N
+with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_C2N.pkl', 'rb') as fs:
+    df_s_C2N_global = pickle.load(fs)
+with open(ref_input_dir + 'save_' + ref_suite_name + '_' + sdate + '_' + fdate + '_C2N.pkl', 'rb') as fs:
+    df_r_C2N_global = pickle.load(fs)
+
 #J2
 with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_J2.pkl', 'rb') as fs:
     df_s_J2_global = pickle.load(fs)
@@ -190,6 +201,12 @@ with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_S3A.p
 with open(ref_input_dir + 'save_' + ref_suite_name + '_' + sdate + '_' + fdate + '_S3A.pkl', 'rb') as fs:
     df_r_S3A_global = pickle.load(fs)
 
+#S3B
+with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_S3B.pkl', 'rb') as fs:
+    df_s_S3B_global = pickle.load(fs)
+with open(ref_input_dir + 'save_' + ref_suite_name + '_' + sdate + '_' + fdate + '_S3B.pkl', 'rb') as fs:
+    df_r_S3B_global = pickle.load(fs)
+
 #ALL-SAT
 with open(input_dir + 'save_' + suite_name + '_' + sdate + '_' + fdate + '_ALLSAT.pkl', 'rb') as fs:
     df_s_ALLSAT_global = pickle.load(fs)
@@ -202,6 +219,9 @@ if not df_s_AL_global.empty and not df_r_AL_global.empty:
 
 if not df_s_C2_global.empty and not df_r_C2_global.empty:
     plot_IS_misfit_rms_difference_map(df_s_C2_global, df_r_C2_global, 'CRYOSAT2')
+
+if not df_s_C2N_global.empty and not df_r_C2N_global.empty:
+    plot_IS_misfit_rms_difference_map(df_s_C2N_global, df_r_C2N_global, 'CRYOSAT2N')
 
 if not df_s_J2_global.empty and not df_r_J2_global.empty:
     plot_IS_misfit_rms_difference_map(df_s_J2_global, df_r_J2_global, 'JASON2')
@@ -217,6 +237,9 @@ if not df_s_H2_global.empty and not df_r_H2_global.empty:
 
 if not df_s_S3A_global.empty and not df_r_S3A_global.empty:
     plot_IS_misfit_rms_difference_map(df_s_S3A_global, df_r_S3A_global, 'SENTINEL3A')
+
+if not df_s_S3B_global.empty and not df_r_S3B_global.empty:
+    plot_IS_misfit_rms_difference_map(df_s_S3B_global, df_r_S3B_global, 'SENTINEL3B')
 
 if not df_s_ALLSAT_global.empty and not df_r_ALLSAT_global.empty:
     plot_IS_misfit_rms_difference_map(df_s_ALLSAT_global, df_r_ALLSAT_global, 'ALL_SAT')

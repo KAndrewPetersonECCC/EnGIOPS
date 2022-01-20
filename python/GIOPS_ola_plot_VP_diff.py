@@ -52,8 +52,8 @@ def plot_VP_misfit_diff_map(df_s, df_r, dep, var):
 
     var: 'temperature' or 'salinity'
     '''
-    df_s['lon_int'][df_s['lon_int'] < 0] += 360                
-    df_r['lon_int'][df_r['lon_int'] < 0] += 360                
+    df_s['lon_int'][df_s['lon_int'] < 0] += 360
+    df_r['lon_int'][df_r['lon_int'] < 0] += 360
     
     # Merge the two dataframes
     df = pd.merge(df_s, df_r, on=['lat_int', 'lon_int'], how='inner')
@@ -64,46 +64,46 @@ def plot_VP_misfit_diff_map(df_s, df_r, dep, var):
     fig = plt.figure(figsize=(10, 6)) 
     if dep == 500:
         if var.lower() == 'temperature':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-500m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-500m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         elif var.lower() == 'salinity':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-500m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-500m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         else:
             sys.exit('plot_VP_misfit_map:  Something wrong with var argument ..')
     elif dep == 50:
         if var.lower() == 'temperature':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-50m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-50m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         elif var.lower() == 'salinity':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-50m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-50m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         else:
             sys.exit('plot_VP_misfit_map:  Something wrong with var argument ..')
     elif dep == 2000:
         if var.lower() == 'temperature':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [500-2000m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [500-2000m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         elif var.lower() == 'salinity':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [500-2000m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [500-2000m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         else:
             sys.exit('plot_VP_misfit_map:  Something wrong with var argument ..')
     elif dep == 10:
         if var.lower() == 'temperature':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-10m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-10m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         elif var.lower() == 'salinity':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-10m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-10m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         else:
             sys.exit('plot_VP_misfit_map:  Something wrong with var argument ..')
     elif dep == 5:
         if var.lower() == 'temperature':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-5m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Temperature misfit rms difference in deg [0-5m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         elif var.lower() == 'salinity':
-            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-5m]', fontsize=16, ha='center')
+            plt.figtext(0.5, 0.95, suite_name + ' vs ' + ref_suite_name +' : Salinity misfit rms difference in PSU [0-5m]', fontsize=14, ha='center')
             plt.figtext(0.5, 0.90, sdate + '-' + fdate, fontsize=14, ha='center')
         else:
             sys.exit('plot_VP_misfit_map:  Something wrong with var argument ..')
@@ -140,8 +140,13 @@ def plot_VP_misfit_diff_map(df_s, df_r, dep, var):
     cmap   = cm.get_cmap("bwr", len(clevs))
     im = m.scatter(x, y, 10, marker='s', c=colors, cmap=cmap, norm=norm, ax=ax)
 
+    normalize = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
     cax, kw = matplotlib.colorbar.make_axes(ax, location='bottom', pad=0.15, shrink=0.8, fraction=0.05)
-    cb = plt.colorbar(im, cax=cax, orientation='horizontal', ticks=ticks)
+    c = matplotlib.colorbar.ColorbarBase(cax, cmap=cmap, norm=normalize, orientation='horizontal', extend='both', ticks=ticks)
+    c.ax.annotate('better', xy=(0.86, 1.2), xycoords='axes fraction')
+    c.ax.annotate('worse', xy=(0.05, 1.2), xycoords='axes fraction')
+    
+#    cb = plt.colorbar(im, cax=cax, orientation='horizontal', ticks=ticks)
 
     plt.savefig(output_path +'/INSITU_' + sdate + '_' + fdate + '_' + var.upper() + '_RMS_DIFF_map_'+ str(dep) + '.png')
     plt.clf()

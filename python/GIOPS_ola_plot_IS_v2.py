@@ -333,14 +333,14 @@ ap.add_argument("--input_dir",   required=True, help="Experiment path")
 ap.add_argument("--output_dir",  required=True, help="Output path")
 ap.add_argument("--start_date",  required=True, help="Start date")
 ap.add_argument("--final_date",  required=True, help="Final date")
-ap.add_argument("--stype",       required=True, help="Experiment type W(weekly) or D(daily)")
+#ap.add_argument("--stype",       required=True, help="Experiment type W(weekly) or D(daily)")
 
 suite_name   = ap.parse_args().suite
 input_dir    = ap.parse_args().input_dir
 output_path  = ap.parse_args().output_dir
 sdate        = ap.parse_args().start_date
 fdate        = ap.parse_args().final_date
-exp_id       = ap.parse_args().stype
+#exp_id       = ap.parse_args().stype
 
 start_date = datetime.datetime.strptime(sdate, "%Y%m%d")
 final_date = datetime.datetime.strptime(fdate, "%Y%m%d")
@@ -368,24 +368,23 @@ if not output_path.endswith('/'):
     output_path = output_path + '/'
 
 
-# Number of dates during the cycle
+# Dates during the cycle
 num_days = (final_date - start_date).days
-# List of dates of the cycle
-if exp_id.upper() == 'W':
-    dates = [start_date + datetime.timedelta(days=x) for x in range(0, num_days + 7, 7)]
-elif exp_id.upper() == 'D':
-    dates = [start_date + datetime.timedelta(days=x) for x in range(0, num_days + 1)]
+dates = [start_date + datetime.timedelta(days=x) for x in range(0, num_days + 7, 7)]
+
 
 # Create empty lists to fill in through the time loop
 
 df_AL_list = []
 df_C2_list = []
 df_C2_list = []
+df_C2N_list = []
 df_J2_list = []
 df_J3_list = []
 df_J2N_list = []
 df_H2_list = []
 df_S3A_list = []
+df_S3B_list = []
 df_ALL_list = []
 
 # Define lats and lons for 2x2 bins
@@ -396,15 +395,18 @@ xlat = bins_lats ; xlat.shape = bins_lats.shape + (1,)
 query_lon = cKDTree(xlon)
 query_lat = cKDTree(xlat)
 
+tmpdir = '/home/kch001/ords/tempo/' + suite_name + '/'
+os.system('mkdir -p ' + tmpdir)
+
 for num_dates in range(len(dates)):
     dateS = datetime.datetime.strftime(dates[num_dates], "%Y%m%d")
     print 'Working on date: ', dateS
 
     if os.path.exists(input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz'):                # case where file is zipped
-        os.system('rm -rf /home/kch001/ords/tempo/*')
-        os.system('cp ' + input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz /home/kch001/ords/tempo/')
-        os.system('gunzip /home/kch001/ords/tempo/' + dateS + '00_SAM.ola.gz')
-        input_file = '/home/kch001/ords/tempo/' + dateS + '00_SAM.ola'
+        os.system('rm -rf ' + tmpdir + '*')
+        os.system('cp ' + input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz ' + tmpdir)
+        os.system('gunzip ' + tmpdir + dateS + '00_SAM.ola.gz')
+        input_file = tmpdir + dateS + '00_SAM.ola'
     else: # case where file is not zipped
         input_file = input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola'
 
@@ -448,16 +450,22 @@ for num_dates in range(len(dates)):
     # Extract data by obs category
     df_IS_AL   = df_IS[df_IS['setID'] == 13]
     df_IS_C2   = df_IS[df_IS['setID'] == 11]
+    df_IS_C2N  = df_IS[df_IS['setID'] == 19]
     df_IS_J2   = df_IS[df_IS['setID'] ==  3]
     df_IS_J3   = df_IS[df_IS['setID'] == 15]
     df_IS_J2N  = df_IS[df_IS['setID'] == 16]
     df_IS_H2   = df_IS[df_IS['setID'] == 14]
     df_IS_S3A  = df_IS[df_IS['setID'] == 17]
+    df_IS_S3B  = df_IS[df_IS['setID'] == 18]
 
     print 'df_IS_AL accepted data number: ', len(df_IS_AL)
     print 'df_IS_AL rejected data number: ', len(df_IS_AL[df_IS_AL['QC'] == 1])
+    
     print 'df_IS_C2 accepted data number: ', len(df_IS_C2)
     print 'df_IS_C2 rejected data number: ', len(df_IS_C2[df_IS_C2['QC'] == 1])
+
+    print 'df_IS_C2N accepted data number: ', len(df_IS_C2N)
+    print 'df_IS_C2N rejected data number: ', len(df_IS_C2N[df_IS_C2N['QC'] == 1])
 
     print 'df_IS_J2 accepted data number: ', len(df_IS_J2)
     print 'df_IS_J2 rejected data number: ', len(df_IS_J2[df_IS_J2['QC'] == 1])
@@ -474,12 +482,15 @@ for num_dates in range(len(dates)):
     print 'df_IS_S3A accepted data number: ', len(df_IS_S3A)
     print 'df_IS_S3A rejected data number: ', len(df_IS_S3A[df_IS_S3A['QC'] == 1])
     
+    print 'df_IS_S3B accepted data number: ', len(df_IS_S3B)
+    print 'df_IS_S3B rejected data number: ', len(df_IS_S3B[df_IS_S3B['QC'] == 1])
+
     # keep only accepted obs
-    for df in df_IS_AL, df_IS_C2, df_IS_J2, df_IS_J3, df_IS_J2N, df_IS_H2, df_IS_S3A:
+    for df in df_IS_AL, df_IS_C2, df_IS_C2N, df_IS_J2, df_IS_J3, df_IS_J2N, df_IS_H2, df_IS_S3A, df_IS_S3B:
         df = df[df['QC'] == 0] 
 
     # Concatenate all obs families
-    df_IS_ALL = pd.concat([df_IS_AL, df_IS_C2, df_IS_J2, df_IS_J3, df_IS_J2N, df_IS_H2, df_IS_S3A], axis=0, ignore_index=True)
+    df_IS_ALL = pd.concat([df_IS_AL, df_IS_C2, df_IS_C2N, df_IS_J2, df_IS_J3, df_IS_J2N, df_IS_H2, df_IS_S3A, df_IS_S3B], axis=0, ignore_index=True)
     
     # Combine dataframes
     if len(df_IS_AL) > 0:
@@ -491,6 +502,11 @@ for num_dates in range(len(dates)):
         df_C2 = df_combine(df_IS_C2)
     else:
         df_C2 = pd.DataFrame(np.nan, index=[], columns=[])
+
+    if len(df_IS_C2N) > 0:
+        df_C2N = df_combine(df_IS_C2N)
+    else:
+        df_C2N = pd.DataFrame(np.nan, index=[], columns=[])
 
     if len(df_IS_J2) > 0:
         df_J2 = df_combine(df_IS_J2)
@@ -516,6 +532,11 @@ for num_dates in range(len(dates)):
         df_S3A = df_combine(df_IS_S3A)
     else:
         df_S3A = pd.DataFrame(np.nan, index=[], columns=[])
+
+    if len(df_IS_S3B) > 0:
+        df_S3B = df_combine(df_IS_S3B)
+    else:
+        df_S3B = pd.DataFrame(np.nan, index=[], columns=[])
     
     if len(df_IS_ALL) > 0:
         df_ALL = df_combine(df_IS_ALL)
@@ -524,21 +545,25 @@ for num_dates in range(len(dates)):
 
     df_AL_list.append(df_AL)
     df_C2_list.append(df_C2)
+    df_C2N_list.append(df_C2N)
     df_J2_list.append(df_J2)
     df_J3_list.append(df_J3)
     df_J2N_list.append(df_J2N)
     df_H2_list.append(df_H2)
     df_S3A_list.append(df_S3A)
+    df_S3B_list.append(df_S3B)
     df_ALL_list.append(df_ALL)
 
 print 'begin concat'
 df_AL_global = pd.concat(df_AL_list, axis=0, ignore_index=True, copy=False)
 df_C2_global = pd.concat(df_C2_list, axis=0, ignore_index=True, copy=False)
+df_C2N_global = pd.concat(df_C2N_list, axis=0, ignore_index=True, copy=False)
 df_J2_global = pd.concat(df_J2_list, axis=0, ignore_index=True, copy=False)
 df_J3_global = pd.concat(df_J3_list, axis=0, ignore_index=True, copy=False)
 df_J2N_global = pd.concat(df_J2N_list, axis=0, ignore_index=True, copy=False)
 df_H2_global = pd.concat(df_H2_list, axis=0, ignore_index=True, copy=False)
 df_S3A_global = pd.concat(df_S3A_list, axis=0, ignore_index=True, copy=False)
+df_S3B_global = pd.concat(df_S3B_list, axis=0, ignore_index=True, copy=False)
 df_ALL_global = pd.concat(df_ALL_list, axis=0, ignore_index=True, copy=False)
    
 print 'end concat'
@@ -555,6 +580,12 @@ if len(df_C2_global) > 0:
     df_C2_global_cmd = combine_global(df_C2_global)
 else:
     df_C2_global_cmd = pd.DataFrame(np.nan, index=[], columns=[])
+
+#Cryosat2N
+if len(df_C2N_global) > 0:
+    df_C2N_global_cmd = combine_global(df_C2N_global)
+else:
+    df_C2N_global_cmd = pd.DataFrame(np.nan, index=[], columns=[])
 
 #Jason2
 if len(df_J2_global) > 0:
@@ -580,11 +611,17 @@ if len(df_H2_global) > 0:
 else:
     df_H2_global_cmd = pd.DataFrame(np.nan, index=[], columns=[])
 
-#Sentinel
+#Sentinel3A
 if len(df_S3A_global) > 0:
     df_S3A_global_cmd = combine_global(df_S3A_global)
 else:
     df_S3A_global_cmd = pd.DataFrame(np.nan, index=[], columns=[])
+
+#Sentinel3B
+if len(df_S3B_global) > 0:
+    df_S3B_global_cmd = combine_global(df_S3B_global)
+else:
+    df_S3B_global_cmd = pd.DataFrame(np.nan, index=[], columns=[])
 
 #All data
 if len(df_ALL_global) > 0:
@@ -603,26 +640,42 @@ if len(df_C2_global_cmd) > 0:
     df_C2_global_cmd_2 = transform_180(df_C2_global_cmd)
 else:
     df_C2_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
+if len(df_C2N_global_cmd) > 0:
+    df_C2N_global_cmd_2 = transform_180(df_C2N_global_cmd)
+else:
+    df_C2N_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_J2_global_cmd) > 0:
     df_J2_global_cmd_2 = transform_180(df_J2_global_cmd)
 else:
     df_J2_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_J3_global_cmd) > 0:
     df_J3_global_cmd_2 = transform_180(df_J3_global_cmd)
 else:
     df_J3_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_J2N_global_cmd) > 0:
     df_J2N_global_cmd_2 = transform_180(df_J2N_global_cmd)
 else:
     df_J2N_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_H2_global_cmd) > 0:
     df_H2_global_cmd_2 = transform_180(df_H2_global_cmd)
 else:
     df_H2_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_S3A_global_cmd) > 0:
     df_S3A_global_cmd_2 = transform_180(df_S3A_global_cmd)
 else:
     df_S3A_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
+if len(df_S3B_global_cmd) > 0:
+    df_S3B_global_cmd_2 = transform_180(df_S3B_global_cmd)
+else:
+    df_S3B_global_cmd_2 = pd.DataFrame(np.nan, index=[], columns=[])
+
 if len(df_ALL_global_cmd) > 0:
     df_ALL_global_cmd_2 = transform_180(df_ALL_global_cmd)
 else:
@@ -631,67 +684,108 @@ else:
 # Save dataframes to pickle objects
 pickle.dump(df_AL_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_AL.pkl", "wb" ) )
 pickle.dump(df_C2_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_C2.pkl", "wb" ) )
+pickle.dump(df_C2N_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_C2N.pkl", "wb" ) )
 pickle.dump(df_J2_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_J2.pkl", "wb" ) )
 pickle.dump(df_J3_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_J3.pkl", "wb" ) )
 pickle.dump(df_J2N_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_J2N.pkl", "wb" ) )
 pickle.dump(df_H2_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_H2.pkl", "wb" ) )
 pickle.dump(df_S3A_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_S3A.pkl", "wb" ) )
+pickle.dump(df_S3B_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_S3B.pkl", "wb" ) )
 pickle.dump(df_ALL_global_cmd_2 , open( output_path + "/save_" + suite_name + "_" + sdate + "_" + fdate + "_ALLSAT.pkl", "wb" ) )
 
 
 # Plot misfit
 if len(df_ALL_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_ALL_global_cmd_2, 'ALL_SAT')
+
 if len(df_AL_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_AL_global_cmd_2, 'ALTIKA')
+
 if len(df_C2_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_C2_global_cmd_2, 'CRYOSAT2')
+
+if len(df_C2N_global_cmd_2) > 0:
+    plot_SLA_misfit_map(df_C2N_global_cmd_2, 'CRYOSAT2N')
+
 if len(df_J2_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_J2_global_cmd_2, 'JASON2')
+
 if len(df_J3_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_J3_global_cmd_2, 'JASON3')
+
 if len(df_J2N_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_J2N_global_cmd_2, 'JASON2N')
+
 if len(df_H2_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_H2_global_cmd_2, 'HY2A')
+
 if len(df_S3A_global_cmd_2) > 0:
     plot_SLA_misfit_map(df_S3A_global_cmd_2, 'SENTINEL3A')
+
+if len(df_S3B_global_cmd_2) > 0:
+    plot_SLA_misfit_map(df_S3B_global_cmd_2, 'SENTINEL3B')
 
 # Plot misfit rms
 if len(df_ALL_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_ALL_global_cmd_2, 'ALL_SAT')
+
 if len(df_AL_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_AL_global_cmd_2, 'ALTIKA')
+
 if len(df_C2_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_C2_global_cmd_2, 'CRYOSAT2')
+
+if len(df_C2N_global_cmd_2) > 0:
+    plot_SLA_misfit_rms_map(df_C2N_global_cmd_2, 'CRYOSAT2N')
+
 if len(df_J2_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_J2_global_cmd_2, 'JASON2')
+
 if len(df_J3_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_J3_global_cmd_2, 'JASON3')
+
 if len(df_J2N_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_J2N_global_cmd_2, 'JASON2N')
+
 if len(df_H2_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_H2_global_cmd_2, 'HY2A')
+
 if len(df_S3A_global_cmd_2) > 0:
     plot_SLA_misfit_rms_map(df_S3A_global_cmd_2, 'SENTINEL3A')
+
+if len(df_S3B_global_cmd_2) > 0:
+    plot_SLA_misfit_rms_map(df_S3B_global_cmd_2, 'SENTINEL3B')
 
 # Plot obs number
 if len(df_ALL_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_ALL_global_cmd_2, 'ALL_SAT')
+
 if len(df_AL_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_AL_global_cmd_2, 'ALTIKA')
+
 if len(df_C2_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_C2_global_cmd_2, 'CRYOSAT2')
+
+if len(df_C2N_global_cmd_2) > 0:
+    plot_SLA_obs_count_map(df_C2N_global_cmd_2, 'CRYOSAT2N')
+
 if len(df_J2_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_J2_global_cmd_2, 'JASON2')
+
 if len(df_J3_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_J3_global_cmd_2, 'JASON3')
+
 if len(df_J2N_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_J2N_global_cmd_2, 'JASON2N')
+
 if len(df_H2_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_H2_global_cmd_2, 'HY2A')
+
 if len(df_S3A_global_cmd_2) > 0:
     plot_SLA_obs_count_map(df_S3A_global_cmd_2, 'SENTINEL3A')
+
+if len(df_S3B_global_cmd_2) > 0:
+    plot_SLA_obs_count_map(df_S3B_global_cmd_2, 'SENTINEL3B')
 
 print 'Finished in : ', time.time()-start, ' s'
 

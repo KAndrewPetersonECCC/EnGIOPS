@@ -248,7 +248,7 @@ def read_fstd_multi_lev(fstd, nomvar, vfreq=0, **kwargs):
 	## exclude variables that don't have the required output frequency (default 24)
 	if ( ( varstr['ip2'] - varstr['ip3' ] ) == vfreq or ( vfreq == 0 ) ):
 	    (rp1, rp2, rp3) = rmn.convertIPtoPK(varstr['ip1'], varstr['ip2'], varstr['ip3'])
-	    if ( rmn.FLOATIPtoList(rp1)[2] == 0 ):  # MAKE SURE ON DEPTH NOT SIGMA LEVEL
+	    if ( ( rmn.FLOATIPtoList(rp1)[2] == 0) or (rmn.FLOATIPtoList(rp1)[2] == 4 ) ):  # MAKE SURE ON DEPTH NOT SIGMA LEVEL
                var.append(varstr['d'])
 	       lev.append(rmn.FLOATIPtoList(rp1)[0])
 
@@ -337,7 +337,7 @@ def area_weights(scale_fstd_):
 
     return lon, lat, e1t*e2t
 
-def read_latlon(fstd, **kwargs):
+def read_latlon(fstd, nomlon='>>', nomlat='^^', **kwargs):
     '''Read field in lat-lon variables.
 
     Returns
@@ -353,11 +353,11 @@ def read_latlon(fstd, **kwargs):
 
     funit = rmn.fstopenall(fstd)
 
-    lon = rmn.fstinl(funit, nomvar='>>')
+    lon = rmn.fstinl(funit, nomvar=nomlon)
     lon = rmn.fstluk(lon[0], dtype=np.float32)
     lon = lon['d']
 
-    lat = rmn.fstinl(funit, nomvar='^^')
+    lat = rmn.fstinl(funit, nomvar=nomlat)
     lat = rmn.fstluk(lat[0], dtype=np.float32)
     lat = lat['d']
 

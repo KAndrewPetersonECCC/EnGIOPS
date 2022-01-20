@@ -369,15 +369,19 @@ query_lat = cKDTree(xlat)
 
 df_g_list_sst = []
 df_g_list_sst_night = []
+
+tmpdir = '/home/kch001/ords/tempo/' + suite_name + '/'
+os.system('mkdir -p ' + tmpdir)
+
 for num_dates in range(len(dates)):
     dateS = datetime.datetime.strftime(dates[num_dates], "%Y%m%d")
     print 'Working on date: ', dateS
 
     if os.path.exists(input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz'):                # case where file is zipped
-        os.system('rm -rf /home/kch001/ords/tempo/*')
-        os.system('cp ' + input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz /home/kch001/ords/tempo/')
-        os.system('gunzip /home/kch001/ords/tempo/' + dateS + '00_SAM.ola.gz')
-        input_file = '/home/kch001/ords/tempo/' + dateS + '00_SAM.ola'
+        os.system('rm -rf ' + tmpdir + '*')
+        os.system('cp ' + input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola.gz ' + tmpdir)
+        os.system('gunzip ' + tmpdir + dateS + '00_SAM.ola.gz')
+        input_file = tmpdir + dateS + '00_SAM.ola'
     else: # case where file is not zipped
         input_file = input_dir + '/' + dateS + '/DIA/' + dateS + '00_SAM.ola'
 

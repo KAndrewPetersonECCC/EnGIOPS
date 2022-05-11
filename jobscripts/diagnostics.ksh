@@ -9,9 +9,9 @@ reference_suite="GIOPS_GDPS"
 input_path="/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_E0/SAM2"
 input_reference_path="/home/kch001/data_hall3/maestro_archives/GX330_CONTROLE/SAM2"
 output_path="/fs/site3/eccc/mrd/rpnenv/dpe000/SAM2_diags/GEP0"
-
 output_reference_path="/fs/site3/eccc/mrd/rpnenv/dpe000/SAM2_diags/GDPS"
-start_date=20190313
+
+start_date=20190320
 final_date=20190911
 cycle_type="W"
 

@@ -33,18 +33,21 @@ def gunzip(file):
 	tile=ddir+'/tmp'+str(random.randint(0,100)).zfill(2)+'.'+bile+'.gz'
 	if ( os.path.isfile(nile) ):
 	    print 'file exists already'
-	    subprocess.call([ 'mv', file, tile] )
-	    subprocess.call([ 'gunzip', tile])
-	    tile=tile[:-3]
-	    rc = subprocess.call([ 'diff', tile, nile])
-	    if ( rc == 0 ):
-	        print 'Removing duplicate', tile
-	        subprocess.call([ 'rm', tile])
-	    else:
-	        print 'Clobbering existing', nile
-	        subprocess.call([ 'mv', tile, nile])
+	    if ( os.path.isfile(file) ):
+	        subprocess.call([ 'mv', file, tile] )
+	        subprocess.call([ 'gunzip', tile])
+	        tile=tile[:-3]
+	        if ( os.path.isfile(tile) ):
+	            rc = subprocess.call([ 'diff', tile, nile])
+	            if ( rc == 0 ):
+	                print 'Removing duplicate', tile
+	                subprocess.call([ 'rm', tile])
+	            elif ( os.path.isfile(tile) ):
+	                print 'Clobbering existing', nile
+	                subprocess.call([ 'mv', tile, nile])
 	else:
-            subprocess.call([ 'gunzip', file])
+	    if ( os.path.isfile(file) ):
+                subprocess.call([ 'gunzip', file])
     else:
         nile = file
         print 'WARNING '+file+' does not end in .gz :: NO CHANGE'

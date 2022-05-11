@@ -1,6 +1,6 @@
 #!/bin/bash
 #ord_soumet /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh -cpus 1 -mpi -cm 64000M -t 10800 -shell=/bin/bash
-#bash /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh
+#bash /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_ratios.sh
 
 TDIR=/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS
 DDIR=/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives
@@ -68,8 +68,8 @@ fi
 
 mkdir /fs/site3/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT}
 ln -s /fs/site3/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT} .
-PJOB=${TDIR}/JOBS/produce_ensemble_plots.${EXPT}.${PLOT}.${DATE}.py
-BJOB=${TDIR}/JOBS/produce_ensemble_plots.${EXPT}.${PLOT}.${DATE}.sh
+PJOB=${TDIR}/JOBS/produce_ensemble_ratios.${EXPT}.${PLOT}.${DATE}.py
+BJOB=${TDIR}/JOBS/produce_ensemble_ratios.${EXPT}.${PLOT}.${DATE}.sh
 SJOB="ord_soumet ${BJOB} -cpus 1 -mpi -cm 64000M -t 10800 -shell=/bin/bash"
 
 cat > ${BJOB} << EOB
@@ -82,12 +82,12 @@ if [[ \$? -eq 0 ]] ; then
     for E in ${ENSB[*]} ; do 
         EEXPT=${EXPT}\${E}
 	if [[ \${E} == 0 && ${EXPT} != GIOPS_E ]]; then
-	    EEXPT=GIOPS_S0
+	    EEXPT=GIOPS_T0
 	fi
-	if [[ ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1d_grid_T_${DATE}00.nc || ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1d_grid_U_${DATE}00.nc || ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1d_grid_V_${DATE}00.nc || ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1h_grid_T_2D_${DATE}00.nc ]] ; then
-	    echo "RETRIEVE FILES: ORCA025-CMC-ANAL_1d_grid_[UVT]_${DATE}00.nc ORCA025-CMC-ANAL_1h_grid_T_2D_${DATE}00.nc"
-	    echo "hpcarchive -p rpnenv_5ans -xc \${EEXPT}.${DATE} -f \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1[dh]_grid_?_ -r ."
-            hpcarchive -p rpnenv_5ans -xc \${EEXPT}.${DATE} -f \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-ANAL_1[dh]_grid_?_ -r . 
+	if [[ ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-TRIAL_1d_grid_T_${DATE}00.nc  || ! -e \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-TRIAL_1h_grid_T_2D_${DATE}00.nc ]] ; then
+	    echo "RETRIEVE FILES: ORCA025-CMC-TRIAL_1d_grid_[UVT]_${DATE}00.nc ORCA025-CMC-TRIAL_1h_grid_T_2D_${DATE}00.nc"
+	    echo "hpcarchive -p rpnenv_5ans -xc \${EEXPT}.${DATE} -f \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-TRIAL_1[dh]_grid_T_ -r ."
+            hpcarchive -p rpnenv_5ans -xc \${EEXPT}.${DATE} -f \${EEXPT}/SAM2/${DATE}/DIA/ORCA025-CMC-TRIAL_1[dh]_grid_T_ -r . 
        else
            echo "Files exist.  CONTINUE"
        fi
@@ -116,7 +116,7 @@ import datadatefile
 datestr='${DATE}'
 ensembles=${PYENSB}
 date=datadatefile.convert_strint_date(datestr)
-read_dia.plot_date(date, ens_pre='${EXPT}', pdir='${PLOT}',ensembles=ensembles)
+read_dia.plot_ratios(date, ens_pre='${EXPT}', pdir='${PLOT}',ensembles=ensembles)
 
 EOP
 

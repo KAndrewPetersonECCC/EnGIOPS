@@ -1,5 +1,6 @@
 
 import sys
+import subprocess
 this_dir='/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python_drew'
 sys.path.insert(0, this_dir)
 import matplotlib as mpl
@@ -12,6 +13,7 @@ import scipy.interpolate
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.lines import Line2D
 
 import read_grid
 import isoheatcontent
@@ -19,10 +21,12 @@ import cplot
 #import find_hall
 import area_wgt_average
 import datadatefile
+import write_nc_grid
 
+TOPDIR='/home/dpe000/EnGIOPS'
 #hall = find_hall.find_hall()
 nensembles=21
-file='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_E0/SAM2/20201104/DIA/ORCA025-CMC-ANAL_1d_grid_T_2020110400.nc'
+default_file='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_E0/SAM2/20201104/DIA/ORCA025-CMC-ANAL_1d_grid_T_2020110400.nc'
 mask = read_grid.read_mask(var='tmask')
 maskt = read_grid.read_mask(var='tmask')
 masku = read_grid.read_mask(var='umask')
@@ -36,7 +40,59 @@ e1u = read_grid.read_mesh_var('e1u')
 e2u = read_grid.read_mesh_var('e2u')
 e1v = read_grid.read_mesh_var('e1v')
 e2v = read_grid.read_mesh_var('e2v')
+nav_lon, nav_lat, nav_area = read_grid.read_coord()
 
+SH_COMMS = { 
+             "PLOTS" : "/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh",
+	     "RATIO" : "/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_ratios.sh"
+	   }
+
+ENSEMBLES = { 20 : np.arange(21),
+              21 : np.arange(21),
+               6 : np.arange(7),
+	       7 : np.arange(7)
+	    }
+	    
+def get_COMMAND(key):
+    if ( key == 'keys' ): return SH_COMMS.keys()
+    return SH_COMMS[key]	   
+def get_ENSEMBLE(key):
+    if ( key == 'keys' ): return ENSEMBLES.keys()
+    return ENSEMBLES[key]	   
+
+def loop_dates_with_command(date_range, command=SH_COMMS["PLOTS"], expts='GIOPS_T', pdirs='PFIG', ensemble=ENSEMBLES[21], dry_run=False ):
+    bash='bash'
+    if ( dry_run ): bash='echo'
+    date_start = date_range[0]
+    date_final = date_range[1]
+    date_incre = 7
+    if ( len(date_range) > 2 ): date_incre = date_range[2]
+    if ( ( isinstance(date_start, int) ) or ( isinstance(date_start, str) ) ): date_start = datadatefile.convert_strint_date(date_start)
+    if ( ( isinstance(date_final, int) ) or ( isinstance(date_final, str) ) ): date_final = datadatefile.convert_strint_date(date_final)
+    date=date_start
+
+    if ( isinstance(expts, str ) ): expts=[expts]
+    if ( isinstance(pdirs, str ) ): pdirs=[pdirs]
+    if ( isinstance(ensemble, str) ): 
+        ensemble_str = ensemble
+    else:
+        ensemble_str=str(ensemble)[1:-1]  # removes []
+    
+    while ( date <= date_final ):
+        datestr, dateint=datadatefile.convert_date_strint(date)
+        for iexpt, expt in enumerate(expts):
+            pdir=pdirs[iexpt]
+	    call_list=[bash, command, '-d='+datestr, '-x='+expt, '-p='+pdir, '-e='+ensemble_str]
+	    print(' '.join(call_list))
+            subprocess.call(call_list)
+        date=date+datetime.timedelta(days=7)
+    return
+
+def read_sam2_levels(file=default_file, fld='deptht'):
+    dataset = netCDF4.Dataset(file)
+    ZED = dataset.variables[fld][:]
+    return ZED
+    	   
 def read_sam2_grid(file, fld='thetao'):
     dataset = netCDF4.Dataset(file)
     TM=dataset.variables[fld][:]
@@ -136,9 +192,28 @@ dir='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives'
 ens_pre='GIOPS_E'
 date=datetime.datetime(2020, 11, 04)
 
+def check_ensembles(ensembles):
+  if ( isinstance(ensembles, list) ):
+    if ( len(ensembles) == 0 ): ensembles=range(nensembles)
+    if ( len(ensembles) == 1 ): ensembles=np.arange(ensembles[0])
+  if ( isinstance(ensembles, str) ):
+    try:
+       ensembles = ENSEMBLES[int(ensembles)]
+    except:
+       try:
+         ensembles = np.arange(int(ensembles))
+       except:
+         ensembles = []
+  if ( isinstance(ensembles, int) ):
+    ensembles=np.arange(ensembles)
+  
+  return ensembles
+       
 def read_ensemble(dir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
 
+    ensembles = check_ensembles(ensembles)
     if ( len(ensembles) == 0 ): ensembles=range(nensembles)
+    print('ENSEMBLES = ', ensembles) 
     datestr=date.strftime("%Y%m%d%H")
     datestd=datestr[:8]
 
@@ -147,10 +222,12 @@ def read_ensemble(dir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', 
     if ( fld == 'U' ): var='uo'
     if ( fld == 'V' ): var='vo'
     if ( fld == 'H' ): var='zos'
+    if ( fld == 'SST'): var='tos'
 
     grid='grid_'+fld
     if ( fld == 'S' ): grid='grid_'+'T'
     if ( fld == 'H' ): grid='grid_T_2D'
+    if ( fld == 'SST'): grid='grid_T_2D'
     FLD_ENSEMBLE = []
     for ens in ensembles:
         ensstr=str(ens)
@@ -213,15 +290,15 @@ def geostrophic_V(dhdx, dhdy):
     vT = regrid_UtoT(v_atU)
     return uT, vT
            
-def plot_date(date):
+def plot_date(date, ens_pre='GIOPS_E', pdir='EFIG',ensembles=[]):
     datestr=date.strftime("%Y%m%d")
     file_pre='ORCA025-CMC-ANAL_1d_'           
     for fld in ['T', 'S', 'U', 'H']:
         file_pre='ORCA025-CMC-ANAL_1d_'      
 	if ( fld == 'H' ):  file_pre='ORCA025-CMC-ANAL_1h_'     
 
-        lon, lat, FLD_ENSEMBLE = read_ensemble(dir, ens_pre, date, fld=fld, file_pre=file_pre)
-	if ( fld == 'U' ):  lonv, latv, FLV_ENSEMBLE = read_ensemble(dir, ens_pre, date, fld='V', file_pre=file_pre)
+        lon, lat, FLD_ENSEMBLE = read_ensemble(dir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles)
+	if ( fld == 'U' ):  lonv, latv, FLV_ENSEMBLE = read_ensemble(dir, ens_pre, date, fld='V', file_pre=file_pre, ensembles=ensembles)
         #if ( fld == 'H' ): 
 	#   lont = lon
 	#   latt = lat
@@ -311,8 +388,8 @@ def plot_date(date):
         GLX_std = area_wgt_average.area_wgt_average(EXT_std)
         GLY_std = area_wgt_average.area_wgt_average(XXT_std)
         dateint = int(datestr)
-        pdir='/home/dpe000/EnGIOPS/EFIG'
-        outfile=pdir+'/'+fld+'_glostd.dat'
+        #pdir='/home/dpe000/EnGIOPS/EFIG'
+        outfile=TOPDIR+'/'+pdir+'/'+fld+'_glostd.dat'
 	print(fld, [GLO_std, GLX_std, GLY_std])
         datadatefile.add_to_file(dateint, [GLO_std, GLX_std, GLY_std], file=outfile)
 
@@ -338,14 +415,176 @@ def plot_date(date):
             xitle = 'Geostophic KE standard deviation on '+datestr
             yitle = '$\eta$ ensemble standard deviation on '+datestr
 	    CLEV=np.arange(0, 0.22,0.02)
-        outfile=pdir+'/'+fld+'_std_'+datestr+'.png'
-        ouxfile=pdir+'/'+fld+'X_std_'+datestr+'.png'
-        ouyfile=pdir+'/'+fld+'Y_std_'+datestr+'.png'
+        outfile=TOPDIR+'/'+pdir+'/'+fld+'_std_'+datestr+'.png'
+        ouxfile=TOPDIR+'/'+pdir+'/'+fld+'X_std_'+datestr+'.png'
+        ouyfile=TOPDIR+'/'+pdir+'/'+fld+'Y_std_'+datestr+'.png'
 	print('SHAPE', FLD_std.shape, EXT_std.shape, XXT_std.shape)
 	print('Max', np.max(FLD_std), np.max(EXT_std))
         cplot.grd_pcolormesh(lon, lat, FLD_std, levels=CLEV, cmap=cmap_posd, outfile=outfile, project='PlateCarree', title=title, obar='horizontal')
         cplot.grd_pcolormesh(lon, lat, EXT_std, levels=CLEV, cmap=cmap_posd, outfile=ouxfile, project='PlateCarree', title=xitle, obar='horizontal')
         cplot.grd_pcolormesh(lon, lat, XXT_std, levels=CLEV, cmap=cmap_posd, outfile=ouyfile, project='PlateCarree', title=yitle, obar='horizontal')
+    return
+    
+def extract_slice(FLD_LIST, slice=0, axis=0):
+    NEW_LIST=[]
+    for FLD in FLD_LIST:
+        if ( axis == 0 ):
+	    NEW=(FLD[[slice],:])
+	if ( axis == 1 ):
+	    NEW=(FLD[:,[slice],:])
+	NEW_LIST.append(NEW)
+    return NEW_LIST
+	    
+def plot_ratios(date, ens_pre='GIOPS_E', pdir='EFIG',ensembles=[]):
+    datestr=date.strftime("%Y%m%d")
+    file_analy='ORCA025-CMC-ANAL_1d_'   
+    file_trial='ORCA025-CMC-TRIAL_1d_'     
+
+    kappa_list = [] 
+    for fld in ['T', 'S', 'H']:
+        file_analy='ORCA025-CMC-ANAL_1d_'      
+        file_trial='ORCA025-CMC-TRIAL_1d_'     
+	inflate = 24.0/12.0   ##  Inflate ratios by two as average is over full IAU period.  
+	if ( fld == 'H' ):  
+	    file_analy='ORCA025-CMC-ANAL_1h_'     
+	    file_trial='ORCA025-CMC-TRIAL_1h_'  
+	    inflate=24.0/23.5   
+
+        lon, lat, FLD_ANALY = read_ensemble(dir, ens_pre, date, fld=fld, file_pre=file_analy, ensembles=ensembles)
+	lon, lat, FLD_TRIAL = read_ensemble(dir, ens_pre, date, fld=fld, file_pre=file_trial, ensembles=ensembles)
+	# ONLY NEED LAST DAY/HOUR
+	FLD_ANALY=extract_slice(FLD_ANALY, slice=-1)
+	FLD_TRIAL=extract_slice(FLD_TRIAL, slice=-1)
+	
+        if ( fld == 'T' ): 
+	    lont = lon
+	    latt = lat
+
+	print(FLD_ANALY[0].shape, FLD_TRIAL[0].shape, len(FLD_ANALY), len(FLD_TRIAL) )
+	ANALY_var, ANALY_mean = ensemble_var(FLD_ANALY)
+        TRIAL_var, TRIAL_mean = ensemble_var(FLD_TRIAL)
+
+	print(ANALY_var.shape, TRIAL_var.shape, ANALY_mean.shape, TRIAL_mean.shape)
+	
+	gamma = ( ANALY_var / TRIAL_var )
+	print('Ratio Max = ', np.max(gamma))
+	EXCEED = np.where(gamma > 1)
+	gamma[EXCEED] = 1.0
+	print('Capped Max = ', np.max(gamma))
+	
+	kappa = np.squeeze(1 - gamma)
+	kappa_list.append(kappa)
+
+        cmap_posd = 'gist_stern_r'
+	CLEV = np.arange(0, 0.65, 0.05)
+	title=datestr+" "+fld+" GAIN"
+	outfile=TOPDIR+'/'+pdir+'/'+fld+'_gain_'+datestr+'.png'
+	KAPPA=np.squeeze(kappa)
+	if ( KAPPA.ndim > 2):  KAPPA=KAPPA[0,:,:]
+	print(fld+' Max: ', np.max(KAPPA))
+        cplot.grd_pcolormesh(lon, lat, KAPPA, levels=CLEV, cmap=cmap_posd, outfile=outfile, project='PlateCarree', title=title, obar='horizontal')
+
+    global_mean = global_average_field(kappa_list, areaF=e1t*e2t, maskF=mask)
+    global_mean_longlist = make_super_list(global_mean)
+    outfile=TOPDIR+'/'+pdir+'/'+'GLOgain.dat'
+    dateint=int(datestr)
+    datadatefile.add_to_file(dateint, global_mean_longlist, file=outfile)
+    
+    outfile=TOPDIR+'/'+pdir+'/'+'Kgain_'+datestr+'.nc'
+    rc = write_nc_grid.write_nc3d_grid(kappa_list, ['T','S','H'], [3,3,2], outfile)
+
+    return kappa_list
+
+def global_average_field(fld, areaF=e1t*e2t, maskF=mask):
+    if ( isinstance(fld, list) ):
+        global_mean_list = []
+        for FLD in fld:
+            global_mean = global_average_field(FLD, areaF=areaF, maskF=maskF)
+	    global_mean_list.append(global_mean) 
+	return global_mean_list
+    if ( ( isinstance(fld, np.ndarray) ) or ( isinstance(fld, numpy.ma.core.MaskedArray) )):
+        (nt, nz) = (1,1)
+	if ( fld.ndim == 4 ): nt, nz, nx, ny = fld.shape
+        if ( fld.ndim == 3 ): nz,nx,ny=fld.shape
+	global_mean_list = []
+	for it in range(nt):
+	  for iz in range(nz):
+	    if ( fld.ndim == 4 ): FLD=fld[it, iz, : , :]
+	    if ( fld.ndim == 3 ): FLD=fld[iz,:,:]
+	    if ( fld.ndim == 2): FLD=fld[:,:]
+	    global_mean = area_wgt_average.area_wgt_average(FLD, area=areaF*maskF[iz,:,:])
+	    global_mean_list.append(global_mean)
+	if ( ( nt > 1 ) or ( nz > 1 ) ) :
+          global_mean_array = np.squeeze(np.reshape(np.array(global_mean_list), (nt,nz)))
+	else:
+	  global_mean_array = global_mean_list[0]
+        return global_mean_array
+    return
+    
+def make_super_list(list):
+    super_list = []
+    for elem in list:
+        if ( isinstance(elem, np.ndarray) ):
+	    super_list.extend( np.ndarray.tolist(elem) )
+	else:
+	    super_list.append(elem)
+    return super_list	    
+
+def read_kappa_ncfile(file, flds=['T','S','H']):
+    LIST = write_nc_grid.read_nc(file,flds)
+    return LIST
+        
+def loop_calc_ratio( date_range, pdir='EFIG'):   
+    date_start = date_range[0]
+    date_final = date_range[1]
+    FLDS=['T','S','H']
+    if ( ( isinstance(date_start, str) ) or ( isinstance(date_start, int) ) ): date_start = datadatefile.convert_strint_date(date_start)
+    if ( ( isinstance(date_final, str) ) or ( isinstance(date_final, int) ) ): date_final = datadatefile.convert_strint_date(date_final)
+    date_incre=7
+    if ( len(date_range) > 2 ): date_incre=date_range[2]
+    date_loop = date_start
+    ninc=0
+    kappa_sum_list = []
+    while ( date_loop <= date_final ):
+        datestr=date_loop.strftime("%Y%m%d")
+        ncfile=TOPDIR+'/'+pdir+'/'+'Kgain_'+datestr+'.nc'
+        kappa_list = read_kappa_ncfile(ncfile, flds=FLDS)
+	for ilist, kappa in enumerate(kappa_list):
+	    KAPPA = np.squeeze(kappa)
+	    if ( ninc == 0 ): 
+	        kappa_sum_list.append(KAPPA)
+	    else:
+	        kappa_sum = kappa_sum_list[ilist]
+	        kappa_sum = kappa_sum+KAPPA
+		kappa_sum_list[ilist] = kappa_sum
+        date_loop = date_loop + datetime.timedelta(days=date_incre)
+	ninc=ninc+1
+
+    cmap_posd = 'gist_stern_r'
+    CLEV = np.arange(0, 0.65, 0.05)
+    kappa_mean_list = []
+    for ilist, kappa_sum in enumerate(kappa_sum_list):
+        fld=FLDS[ilist]
+        kappa_sum = kappa_sum / ninc
+	kappa_mean_list.append(kappa_sum)
+	KAPPA=np.squeeze(kappa_sum)
+	nz=1
+	if ( KAPPA.ndim > 2 ): nz=len(KAPPA)
+	for iz in range(nz):
+	    if ( nz == 1 ): 
+	        KPLOT=KAPPA
+		zfld=fld
+	    else:
+	        KPLOT=KAPPA[iz,:,:]
+		zfld=fld+'.'+str(iz).zfill(2)
+	    title='Time Average'+" "+zfld+" GAIN"
+	    outfile=TOPDIR+'/'+pdir+'/'+zfld+'_gain_'+'TAVERAGE'+'.png'
+            cplot.grd_pcolormesh(nav_lon, nav_lat, KPLOT, levels=CLEV, cmap=cmap_posd, outfile=outfile, project='PlateCarree', title=title, obar='horizontal')
+
+    global_mean = global_average_field(kappa_mean_list, areaF=nav_area, maskF=mask)
+    print('Global Mean T: ', global_mean[0])
+    print('Global Mean S: ', global_mean[1])
+    print('Global Mean H: ', global_mean[2])
     return
 
 def_plots=[ [['T',0,'SST'], ['T',1,'T(0-100m)'] ,['T',2, 'T(0-1000m)']], 
@@ -355,7 +594,9 @@ def_plots=[ [['T',0,'SST'], ['T',1,'T(0-100m)'] ,['T',2, 'T(0-1000m)']],
 	  ]
 def_ylabels=[['Temperature', '($\deg$C)','T'], ['Salinity', '(PSU)','S'], ['Sea Surface Height', '(m)','H'], ['Kinetic Energy', '(m$^2$/s$^2$)','U']]
 def_time=[datetime.datetime(2019,3,13), datetime.datetime(2020,12,30)]
-def plot_timeseries(pdir='/home/dpe000/EnGIOPS/EFIG', plots=def_plots, ylabels=def_ylabels, time_range=None):
+
+
+def plot_timeseries(pdir='EFIG', plots=def_plots, ylabels=def_ylabels, time_range=None):
 
     plt.rc('font', family='serif')
     plt.rc('text', usetex=True)
@@ -378,7 +619,7 @@ def plot_timeseries(pdir='/home/dpe000/EnGIOPS/EFIG', plots=def_plots, ylabels=d
 	    iitype = mytype[1]
 	    ilabel = mytype[2]
 	    
-            dfile=pdir+'/'+hitype+'_glostd.dat'
+            dfile=TOPDIR+'/'+pdir+'/'+hitype+'_glostd.dat'
 	    print(dfile)
 	    dateint_list, STD = datadatefile.read_file(dfile)
 	    dates = datadatefile.convert_strint_datelist(dateint_list)
@@ -392,7 +633,191 @@ def plot_timeseries(pdir='/home/dpe000/EnGIOPS/EFIG', plots=def_plots, ylabels=d
         ax.set_xlabel('Date')
         ax.set_title(ititle)
 
-        fig.savefig(pdir+'/'+iofile+'_timeseries.png')
-        fig.savefig(pdir+'/'+iofile+'_timeseries.pdf')
+        outfile=TOPDIR+'/'+pdir+'/'+iofile+'_timeseries'
+        fig.savefig(outfile+'.png')
+        fig.savefig(outfile+'.pdf')
         plt.close(fig)
+    return
         	
+def plot_multi_timeseries(outprefix='PLOTS/', pdirs=['EFIG','TFIG'], labels=['Flx', 'Flx+STO'], plots=def_plots, ylabels=def_ylabels, time_range=None):
+
+    plt.rc('font', family='serif')
+    plt.rc('text', usetex=True)
+
+    myFmt = mdates.DateFormatter('%m/%d')
+    colours = ['r', 'b', 'g', 'm', 'c']
+    linesty = ['-', '--', ':', '-.']
+
+    figs = []
+    axes = []
+    for iplot, myplot in enumerate(plots):
+        ylabel = 'Std Dev of '+ylabels[iplot][0]+' '+ylabels[iplot][1]
+	ititle = 'Std Dev '+ylabels[iplot][0]+' time series'
+	iofile = ylabels[iplot][2]
+        fig, axe = plt.subplots()
+	figs.append(fig)
+	axes.append(axe)
+    
+        dates_list = []
+        serie_list = []
+	legend_expts = []
+        legend_elements = []
+        for itype, mytype in enumerate(myplot):
+	    linestyle = linesty[itype]
+	    hitype = mytype[0]
+	    iitype = mytype[1]
+	    ilabel = mytype[2]
+            legend_elements.append( Line2D([0], [0], color='k', ls=linestyle, label=ilabel) )
+	    
+	    for idir, pdir in enumerate(pdirs):
+	        icolor = colours[idir%5]
+		label = labels[idir]
+                dfile=TOPDIR+'/'+pdir+'/'+hitype+'_glostd.dat'
+	        print(dfile)
+	        dateint_list, STD = datadatefile.read_file(dfile)
+	        dates = datadatefile.convert_strint_datelist(dateint_list)
+	        iSTD = STD[iitype]
+	        dates_list.append(dates)
+	        serie_list.append(iSTD)
+                eline, = axe.plot(dates, iSTD, color=icolor, linestyle=linestyle, label=label)
+		if ( itype == 0 ):
+		    legend_expts.append(eline)
+		
+        #print(legend_expts)
+	#print(legend_elements)
+        expt_legend = axe.legend(handles=legend_expts, loc='lower right')
+        line_legend = axe.legend(handles=legend_elements, loc='upper left')
+	axe.add_artist(expt_legend)
+	axe.add_artist(line_legend)
+        axe.set_ylabel(ylabel)
+        axe.set_xlabel('Date')
+        axe.set_title(ititle)
+
+        outfile=TOPDIR+'/'+outprefix+iofile+'_timeseries'
+        fig.savefig(outfile+'.png')
+        fig.savefig(outfile+'.pdf')
+        plt.close(fig)
+	
+    return
+
+def_ylabels=[['Temperature', '($\deg$C)','T'], ['Salinity', '(PSU)','S'], ['Sea Surface Height', '(m)','H'], ['Kinetic Energy', '(m$^2$/s$^2$)','U']]
+def_time=[datetime.datetime(2019,3,13), datetime.datetime(2020,12,30)]
+
+def plot_multi_ratioseries(outprefix='PLOTS/E20_', pdirs=['EFIG','TFIG', 'SFIG'], labels=['Flx', 'Flx+STO', 'STO'], time_range=None):
+
+    plt.rc('font', family='serif')
+    plt.rc('text', usetex=True)
+
+    myFmt = mdates.DateFormatter('%m/%d')
+    colours = ['r', 'b', 'g', 'm', 'c']
+    linesty = ['-', '--', ':', '-.']
+
+    figs = []
+    axes = []
+
+    ZED = read_sam2_levels()
+    
+    IDEP = [0]
+    ZDEP = [0, 10, 100, 1000]
+    for zdep in ZDEP[1:]:
+        idep = np.argmin(np.abs(ZED-zdep))
+	IDEP.append(idep)
+	
+    dates_list = []
+    gains_list = []
+    for idir, pdir in enumerate(pdirs):
+        dfile=TOPDIR+'/'+pdir+'/GLOgain.dat'
+        dateint_list, gains = datadatefile.read_file(dfile)
+        dates = datadatefile.convert_strint_datelist(dateint_list)
+	dates_list.append(dates)
+	gains_list.append(gains)
+	
+    for iplot in range(104):
+        if ( iplot < 50 ):
+	    TFLD='T'
+	    OFLD='T'
+	    LEV=str(iplot)
+	    IIS=[iplot]
+	    ilabels=['T['+LEV+']']
+	elif ( iplot < 100 ):
+	    TFLD='S'
+	    OFLD='S'
+	    LEV=str(iplot-50)
+	    IIS=[iplot]
+	    ilabels=['S['+LEV+']']
+	elif ( iplot == 100):
+	    TFLD='$\eta$'
+	    OFLD='H'
+	    LEV='0'
+	    IIS=[iplot]
+	    ilabels=['$\eta$']
+	elif ( iplot == 101):
+	    TFLD='T/S/H'
+	    OFLD='A'
+	    LEV='0'
+	    IIS=[0, 50, 100]
+	    ilabels=['T[0]', 'S[0]', '$\eta$']
+	elif ( iplot == 102):
+	    TFLD='T'
+	    OFLD='T'
+	    LEV='M'
+	    IIS=IDEP
+	    ilabels=['T[0m]', 'T[10m]', 'T[100m]', 'T[1000m]']
+	elif ( iplot == 102):
+	    TFLD='S'
+	    OFLD='S'
+	    LEV='M'
+	    IIS=[50+idep for idep in IDEP]
+	    ilabels=['S[0m]', 'S[10m]', 'S[100m]', 'S[1000m]']
+	    
+        ylabel = 'Gain $\kappa$ for '+TFLD+'L'+LEV
+	ititle = 'Gain $\kappa$ for '+TFLD+'L'+LEV+' time series'
+	iofile = OFLD+'L'+LEV
+        fig, axe = plt.subplots()
+	figs.append(fig)
+	axes.append(axe)
+    
+	legend_expts = []
+        legend_elements = []
+	
+	for idir, pdir in enumerate(pdirs):
+	    icolor = colours[idir%5]
+	    label = labels[idir]
+	    dates = dates_list[idir]
+	    gains = gains_list[idir]
+	    dfile=TOPDIR+'/'+pdir+'/GLOgain.dat'
+	    
+	    Tgain = gains[0:50,:]
+	    Sgain = gains[50:100,:]
+	    Hgain = gains[100,:]
+
+	    idata = gains[IIS,:]
+	    if ( idata.ndim == 1 ):
+	       idata = [idata.tolist()]
+	    else:
+	       idata = idata.tolist()
+
+            for itype in range(len(idata)):
+	        linestyle = linesty[itype]
+                ilabel = ilabels[itype]		
+	        if ( idir == 0 ): legend_elements.append( Line2D([0], [0], color='k', ls=linestyle, label=ilabel) )
+		eline, = axe.plot(dates, idata[itype], color=icolor, linestyle=linestyle, label=label)
+		if ( itype == 0 ):
+		    legend_expts.append(eline)
+	    
+        #print(legend_expts)
+	#print(legend_elements)
+        expt_legend = axe.legend(handles=legend_expts, loc='lower right')
+        line_legend = axe.legend(handles=legend_elements, loc='upper left')
+	axe.add_artist(expt_legend)
+	axe.add_artist(line_legend)
+        axe.set_ylabel(ylabel)
+        axe.set_xlabel('Date')
+        axe.set_title(ititle)
+
+        outfile=TOPDIR+'/'+outprefix+iofile+'_timeseries'
+        fig.savefig(outfile+'.png')
+        fig.savefig(outfile+'.pdf')
+        plt.close(fig)
+	
+    return

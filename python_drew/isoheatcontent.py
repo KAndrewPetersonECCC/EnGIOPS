@@ -2,7 +2,7 @@ import numpy as np
 import socket
 import time
 import sys
-
+        
 import stfd
 import read_grid
 import datetime
@@ -10,7 +10,7 @@ import datetime
 import tmpcp
 import find_hall
 
-geops_dir='/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/GEOPS/GEOPS/python'
+geops_dir='/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/GEOPS/GEOPS/python'
 sys.path.insert(0, geops_dir)
 import read_class4
 
@@ -46,7 +46,7 @@ def isotherm_from_below(T_3D, mask, lev_1d, bottom, Tlevel=20):
     is_3dlev = False
     if ( isinstance(lev_1d, np.ndarray) ):
         if ( lev_1d.ndim == 3 ):
-	    is_3dlev = True
+            is_3dlev = True
 
     for iz in sorted(range(1,nz), reverse=True):
        Tk = T_3D[iz,:,:]
@@ -73,7 +73,7 @@ def isotherm_from_below(T_3D, mask, lev_1d, bottom, Tlevel=20):
     # Finally, if top layer is land, isotherm depth is zero    
     iland = np.where(mask[0,:,:] == 0 )
     D_iso[iland] = 0.0
-    #print 'Final below', np.min(D_iso), np.max(D_iso)
+    #print('Final below', np.min(D_iso), np.max(D_iso))
     return D_iso
     
 def isotherm_from_above(T_3D, mask, lev_1d, bottom, Tlevel=20):
@@ -82,14 +82,14 @@ def isotherm_from_above(T_3D, mask, lev_1d, bottom, Tlevel=20):
     #  add ssh to e3t[0,:,:] for non-VVL case
     
     nz, nx, ny = T_3D.shape  # note the odd shape of standard file 3D files.
-    #print 'nz, nx, ny ', nz, nx, ny
+    #print('nz, nx, ny ', nz, nx, ny)
     D_iso = np.zeros((nx,ny))
     D_thr = np.zeros((nx,ny))  ## in order not to get lower layer in inversion, need to know when threshold first meet.
     
     is_3dlev = False
     if ( isinstance(lev_1d, np.ndarray) ):
         if ( lev_1d.ndim == 3 ):
-	    is_3dlev = True
+            is_3dlev = True
 
     for iz in range(nz-1):
        Tk = T_3D[iz,:,:]
@@ -115,8 +115,8 @@ def isotherm_from_above(T_3D, mask, lev_1d, bottom, Tlevel=20):
        D_above[ibottom] = bottom[iabove][ibottom]
        
        D_iso[iabove] = D_above
-       #if (len(D_iso[iabove][iocean])>0): print 'ocean level =', iz, np.max(D_iso[iabove][iocean])
-       #if (len(D_iso[iabove][ibottom])>0): print 'bottom level =', iz, np.max(D_iso[iabove][ibottom])
+       #if (len(D_iso[iabove][iocean])>0): print('ocean level =', iz, np.max(D_iso[iabove][iocean]))
+       #if (len(D_iso[iabove][ibottom])>0): print('bottom level =', iz, np.max(D_iso[iabove][ibottom]))
 
     # Finally, if bottom layer is greater than isotherm, isotherm depth is bottom    
     Tk = T_3D[nz-1,:,:]
@@ -126,7 +126,7 @@ def isotherm_from_above(T_3D, mask, lev_1d, bottom, Tlevel=20):
     iocean = np.where( Mk[iabove] > 0 )
     D_above[iocean] = bottom[iabove][iocean]
     D_iso[iabove] = D_above
-    #print 'Final above', np.min(D_iso), np.max(D_iso)
+    #print('Final above', np.min(D_iso), np.max(D_iso))
     
     return D_iso
 
@@ -144,9 +144,9 @@ def isotherm_class4_slow(OBS, DEPTH,Tlevel=20, from_above=True):
         nobs, ndepths = DEPTH.shape
     else: 
         nobs=1
-	ndepths = len(DEPTH)
-	print nobs, ndepths
-	DEPTH = np.reshape(DEPTH, (nobs, ndepths) )
+        ndepths = len(DEPTH)
+        print(nobs, ndepths)
+        DEPTH = np.reshape(DEPTH, (nobs, ndepths) )
 
     if ( OBS.ndim == 3 ): 
         T_OBS = OBS[:,0,:]
@@ -154,19 +154,19 @@ def isotherm_class4_slow(OBS, DEPTH,Tlevel=20, from_above=True):
         T_OBS = np.reshape(OBS, (nobs, ndepths))
     else:
         T_OBS = OBS[:,:]
-	
+        
     MASK = 1 - DEPTH.mask     
     BOTM = np.max(DEPTH,1)
     D_iso = []
     for iobs in range(nobs):
-        #print 'iobs = ', iobs, nobs
+        #print('iobs = ', iobs, nobs)
         T_3D = np.reshape(T_OBS[iobs,:], (ndepths, 1, 1))
-	
-	M_3D = np.reshape(MASK[iobs,:], (ndepths, 1, 1))
-	B_3D = np.reshape(BOTM[iobs], (1,1))
-	L_1D = DEPTH[iobs,:]
-	D_tmp = isotherm(T_3D, M_3D, L_1D, B_3D, Tlevel=Tlevel, from_above=from_above)
-	#print 'iobs = ', iobs, nobs, D_tmp.shape
+        
+        M_3D = np.reshape(MASK[iobs,:], (ndepths, 1, 1))
+        B_3D = np.reshape(BOTM[iobs], (1,1))
+        L_1D = DEPTH[iobs,:]
+        D_tmp = isotherm(T_3D, M_3D, L_1D, B_3D, Tlevel=Tlevel, from_above=from_above)
+        #print('iobs = ', iobs, nobs, D_tmp.shape)
         D_iso.append(D_tmp[0,0])
     D_iso = np.array(D_iso)
     return D_iso
@@ -192,7 +192,7 @@ def isotherm_class4(OBS, DEPTH, Tlevel=20, from_above=True):
         T_OBS = OBS[:,0,:]
     else:
         T_OBS = OBS[:,:]
-	
+        
     MASK = read_class4.make_mask(T_OBS) 
     BOTM = np.max(DEPTH,1)
     
@@ -236,14 +236,14 @@ def heat_content_class4(OBS, DEPTH, depth=10):
     nobs, ndepths = T_OBS.shape
     MASK = read_class4.make_mask(T_OBS)
     E3T, zedge = read_class4.calc_e3t_inc(DEPTH)
-    #print nobs, ndepths    
+    #print(nobs, ndepths)    
     T_3D = rearrange_class4_fld(T_OBS.data)
     E_3D = rearrange_class4_fld(E3T)
     M_3D = rearrange_class4_fld(MASK)
-    #print T_3D.shape, E_3D.shape, M_3D.shape
+    #print(T_3D.shape, E_3D.shape, M_3D.shape)
     htc = heat_content(T_3D, E_3D, M_3D, depth=depth)
     htc = mk1D_class4_fld(htc)
-    #print htc.shape
+    #print(htc.shape)
     return htc   
     
 def heat_content_diff(T_3D, e3t, mask, depth=[10, 100]):
@@ -272,7 +272,7 @@ def salt_content_class4(OBS, DEPTH, depth=10):
     nobs, ndepths = DEPTH.shape
     MASK = make_mask(S_OBS)
     E3T, zedge = read_class4.calc_e3t_inc(DEPTH)
-    #print nobs, ndepths    
+    #print(nobs, ndepths)    
     S_3D = rearrange_class4_fld(S_OBS.data)
     E_3D = rearrange_class4_fld(E3T)
     M_3D = rearrange_class4_fld(MASK)
@@ -343,69 +343,69 @@ def calculate_from_file(file, var='H10', hall=hall):
     # Need U/V grid nav_lon/lat too, or instead.
     # Ditto umask and vmask
     for ii in range(len(var)):
-        print var[ii]
+        print(var[ii])
     bad=True
     if ( var == 'TM' ): 
         fvar = 'TM' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'H' ): 
-        print var[0]
+        print(var[0])
         fvar = 'TM' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     try: 
         var2 = var[2]
     except:
         var2 = 'X'
     if ( var2 == 'D' ): 
-        #print var2
+        #print(var2)
         fvar = 'TM' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'S' ): 
-        print var[0]
+        print(var[0])
         fvar = 'SALW'
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'U' ): 
-        print var[0]
+        print(var[0])
         fvar = 'UUW'
-	#evar = 'e3u_0'
-	#mvar = 'umask'
-	#gvar = 'U'
-	# In standard file, everything is on T-grid
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        #evar = 'e3u_0'
+        #mvar = 'umask'
+        #gvar = 'U'
+        # In standard file, everything is on T-grid
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'V' ): 
-        print var[0]
+        print(var[0])
         fvar = 'VVW'
-	#evar = 'e3v_0'
-	#mvar = 'vmask'
-	#gvar = 'V'
-	# In standard file, everything is on T-grid
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        #evar = 'e3v_0'
+        #mvar = 'vmask'
+        #gvar = 'V'
+        # In standard file, everything is on T-grid
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var == 'MLW' ): 
-        print var[0]
+        print(var[0])
         fvar = 'MLW'
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
-	
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
+        
     if ( bad ):
         raise Exception(var+' variable did not register.  Check variable name.')
 
@@ -416,15 +416,15 @@ def calculate_from_file(file, var='H10', hall=hall):
     lev , T_3D = stfd.read_fstd_multi_lev(file, fvar, typvar='P@')
     if ( ( T_3D.shape[0] != mask.shape[0] ) and ( T_3D.shape[0] != 1 ) ): #  Mis-match between mask and T_3D.
         # May have read in higher frequency variables
-	lev, T_3D = stfd.read_fstd_multi_lev(file, fvar, vfreq=24, typvar='P@')
+        lev, T_3D = stfd.read_fstd_multi_lev(file, fvar, vfreq=24, typvar='P@')
     if ( ( T_3D.shape[0] != mask.shape[0] ) and ( T_3D.shape[0] != 1 ) ): #  Mis-match between mask and T_3D STILL A PROBLEM
         # May need to remove bottom temperature from list of levels
-	if ( 1.0 in lev ):
-	  ibottom = lev.index(1.0)
-	  lev.pop(ibottom)
-	  T_3D = np.delete(T_3D, ibottom, 0)
+        if ( 1.0 in lev ):
+          ibottom = lev.index(1.0)
+          lev.pop(ibottom)
+          T_3D = np.delete(T_3D, ibottom, 0)
     if ( ( T_3D.shape[0] != mask.shape[0] ) and ( T_3D.shape[0] != 1 ) ): #  Mis-match between mask and T_3D STILL A PROBLEM
-        raise Exception(fvar+' has wrong shape '+str(T_3D.shape))	
+        raise Exception(fvar+' has wrong shape '+str(T_3D.shape))        
     bottom = read_grid.bottom_depth_from_e3t(e3t, mask)
     e3t[0,:,:] = e3t[0,:,:] + SSH
     botton = read_grid.bottom_depth_from_e3t(e3t, mask)
@@ -436,32 +436,32 @@ def calculate_from_file(file, var='H10', hall=hall):
     if ( var2 == 'D' ):  # D20, D26, D28
         Tlevel = float(var[0:2])
         FLD = isotherm(T_3D, mask, lev, bottom, Tlevel=Temperature_in_K(Tlevel), from_above=True)
-	#FLD = isotherm(Temperature_in_C(T_3D), mask, lev, bottom, Tlevel=Tlevel, from_above=True)
-	
+        #FLD = isotherm(Temperature_in_C(T_3D), mask, lev, bottom, Tlevel=Tlevel, from_above=True)
+        
     if ( ( var[0] == 'H' ) or ( var[0] == 'S' ) or ( var[0] == 'U' ) or ( var[0] == 'V' ) ):
         try:
-	    level=float(var[1:3])
-	except:
+            level=float(var[1:3])
+        except:
             try: 
                 var2 = var[2]
             except:
                 var2 = 'X'
-	    try:
-	        if ( var2 == 'C' ):
-	            level=float(var[1])*100.0
-	        if ( var2 == 'K' ):
-	            level=float(var[1])*1000.0 
+            try:
+                if ( var2 == 'C' ):
+                    level=float(var[1])*100.0
+                if ( var2 == 'K' ):
+                    level=float(var[1])*1000.0 
             except:
-	        level=0.0
+                level=0.0
 
-    if ( ( var[0] == 'H' ) and ( var != 'HHP' ) ):	    	
+    if ( ( var[0] == 'H' ) and ( var != 'HHP' ) ):                    
         FLD = heat_content(T_3D, e3t, mask, depth=level)    
-    if ( ( var[0] == 'S' ) ):	    	
+    if ( ( var[0] == 'S' ) ):                    
         FLD = salt_content(T_3D, e3t, mask, depth=level)    
-    if ( ( var[0] == 'U' ) or ( var[0] == 'V' ) ):	    	
+    if ( ( var[0] == 'U' ) or ( var[0] == 'V' ) ):                    
         FLD = depth_mean_velocity(T_3D, e3t, mask, depth=level)    
-    if ( ( var == 'HHP' ) ):	    	
-        FLD = hurricane_heat_potential(T_3D, lev, e3t, mask, T_threshold=26)			         
+    if ( ( var == 'HHP' ) ):                    
+        FLD = hurricane_heat_potential(T_3D, lev, e3t, mask, T_threshold=26)                                 
     if ( ( var == 'MLW' ) ):
         FLD = np.squeeze(T_3D)
     if ( ( var == 'TM' ) ):
@@ -473,69 +473,69 @@ def calculate_from_ncfile(file, fssh, var='H10', hall=hall):
     # Need U/V grid nav_lon/lat too, or instead.
     # Ditto umask and vmask
     for ii in range(len(var)):
-        print var[ii]
+        print(var[ii])
     bad=True
     if ( var == 'TM' ): 
         fvar = 'thetao' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'H' ): 
-        print var[0]
+        print(var[0])
         fvar = 'thetao' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     try: 
         var2 = var[2]
     except:
         var2 = 'X'
     if ( var2 == 'D' ): 
-        #print var2
+        #print(var2)
         fvar = 'thetao' 
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'S' ): 
-        print var[0]
+        print(var[0])
         fvar = 'so'
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = False
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = False
     if ( var[0] == 'U' ): 
-        print var[0]
+        print(var[0])
         fvar = 'uo'
-	evar = 'e3u_0'
-	mvar = 'umask'
-	gvar = 'U'
-	# In standard file, everything is on T-grid
-	#evar = 'e3t_0'
-	#mvar = 'tmask'
-	#gvar = 'T'
-	bad = True
+        evar = 'e3u_0'
+        mvar = 'umask'
+        gvar = 'U'
+        # In standard file, everything is on T-grid
+        #evar = 'e3t_0'
+        #mvar = 'tmask'
+        #gvar = 'T'
+        bad = True
     if ( var[0] == 'V' ): 
-        print var[0]
+        print(var[0])
         fvar = 'vo'
-	evar = 'e3v_0'
-	mvar = 'vmask'
-	gvar = 'V'
-	# In standard file, everything is on T-grid
-	#evar = 'e3t_0'
-	#mvar = 'tmask'
-	#gvar = 'T'
-	bad = True
+        evar = 'e3v_0'
+        mvar = 'vmask'
+        gvar = 'V'
+        # In standard file, everything is on T-grid
+        #evar = 'e3t_0'
+        #mvar = 'tmask'
+        #gvar = 'T'
+        bad = True
     if ( var == 'MLW' ): 
-        print var[0]
+        print(var[0])
         fvar = 'MLW'
-	evar = 'e3t_0'
-	mvar = 'tmask'
-	gvar = 'T'
-	bad = True
-	
+        evar = 'e3t_0'
+        mvar = 'tmask'
+        gvar = 'T'
+        bad = True
+        
     if ( bad ):
         raise Exception(var+' variable did not register.  Check variable name.')
 
@@ -553,7 +553,7 @@ def calculate_from_ncfile(file, fssh, var='H10', hall=hall):
         T_3D = T_3D + KCONV 
 
     if ( ( T_3D.shape[0] != mask.shape[0] ) and ( T_3D.shape[0] != 1 ) ): #  Mis-match between mask and T_3D STILL A PROBLEM
-        raise Exception(fvar+' has wrong shape '+str(T_3D.shape))	
+        raise Exception(fvar+' has wrong shape '+str(T_3D.shape))        
     bottom = read_grid.bottom_depth_from_e3t(e3t, mask)
     e3t[0,:,:] = e3t[0,:,:] + SSH
     botton = read_grid.bottom_depth_from_e3t(e3t, mask)
@@ -565,32 +565,32 @@ def calculate_from_ncfile(file, fssh, var='H10', hall=hall):
     if ( var2 == 'D' ):  # D20, D26, D28
         Tlevel = float(var[0:2])
         FLD = isotherm(T_3D, mask, lev, bottom, Tlevel=Temperature_in_K(Tlevel), from_above=True)
-	#FLD = isotherm(Temperature_in_C(T_3D), mask, lev, bottom, Tlevel=Tlevel, from_above=True)
-	
+        #FLD = isotherm(Temperature_in_C(T_3D), mask, lev, bottom, Tlevel=Tlevel, from_above=True)
+        
     if ( ( var[0] == 'H' ) or ( var[0] == 'S' ) or ( var[0] == 'U' ) or ( var[0] == 'V' ) ):
         try:
-	    level=float(var[1:3])
-	except:
+            level=float(var[1:3])
+        except:
             try: 
                 var2 = var[2]
             except:
                 var2 = 'X'
-	    try:
-	        if ( var2 == 'C' ):
-	            level=float(var[1])*100.0
-	        if ( var2 == 'K' ):
-	            level=float(var[1])*1000.0 
+            try:
+                if ( var2 == 'C' ):
+                    level=float(var[1])*100.0
+                if ( var2 == 'K' ):
+                    level=float(var[1])*1000.0 
             except:
-	        level=0.0
+                level=0.0
 
-    if ( ( var[0] == 'H' ) and ( var != 'HHP' ) ):	    	
+    if ( ( var[0] == 'H' ) and ( var != 'HHP' ) ):                    
         FLD = heat_content(T_3D, e3t, mask, depth=level)    
-    if ( ( var[0] == 'S' ) ):	    	
+    if ( ( var[0] == 'S' ) ):                    
         FLD = salt_content(T_3D, e3t, mask, depth=level)    
-    if ( ( var[0] == 'U' ) or ( var[0] == 'V' ) ):	    	
+    if ( ( var[0] == 'U' ) or ( var[0] == 'V' ) ):                    
         FLD = depth_mean_velocity(T_3D, e3t, mask, depth=level)    
-    if ( ( var == 'HHP' ) ):	    	
-        FLD = hurricane_heat_potential(T_3D, lev, e3t, mask, T_threshold=26)			         
+    if ( ( var == 'HHP' ) ):                    
+        FLD = hurricane_heat_potential(T_3D, lev, e3t, mask, T_threshold=26)                                 
     if ( ( var == 'MLW' ) ):
         FLD = np.squeeze(T_3D)
     if ( ( var == 'TM' ) ):

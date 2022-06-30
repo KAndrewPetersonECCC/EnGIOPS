@@ -2,7 +2,7 @@
 'Global ice-ocean prediction system (GIOPS)'
 'Requires . r.load.dot eccc/mrd/rpn/MIG/ENV/py/2.7/rpnpy/2.0.4 '
 'Requires ? . ssmuse-sh -d /fs/ssm/eccc/mrd/rpn/OCEAN/cstint-3.0.4 '
-
+        
 import datetime
 import fnmatch
 import logging
@@ -26,7 +26,7 @@ rmn.fstopt(rmn.FSTOP_MSGLVL, rmn.FSTOPI_MSG_ERROR)
 SHALLOWEST_DEPTH = .494025
 GRID_SHAPE = 1442, 1021
 file='/home/rmu001/data/ppp2/maestro/rm_hind_month_025/Sorties_3/nemo_0204/CICE/1996020500_000'
-
+        
 def file_query(file, nomvar=None):
 
     try:
@@ -43,13 +43,13 @@ def file_query(file, nomvar=None):
             print("Found %d records" % (len(keylist)) )
 
         # Get every record meta data
-	VARS=[]
-	VARF=[]
+        VARS=[]
+        VARF=[]
         for k in keylist:
             m = rmn.fstprm(k)
             print("%s (%d, %d, %d, %s)" % (m['nomvar'], m['ip1'], m['ip2'], m['ip3'], m['datev']))
-	    VARS.append(m['nomvar'])
-	    VARF.append(m)
+            VARS.append(m['nomvar'])
+            VARF.append(m)
     except:
         pass
     finally:
@@ -132,8 +132,8 @@ def read_fstd_gid(fstd, nomvar, **kwargs):
     flds=[]
     for var_rec in var_recs:
         fldstr = rmn.fstluk(var_rec)
-	fld = fldstr['d'].astype(np.float32)
-	flds.append(fld)
+        fld = fldstr['d'].astype(np.float32)
+        flds.append(fld)
 
     rmn.fstcloseall(funit)
 
@@ -212,8 +212,8 @@ def read_fstd_multi(fstd, nomvar, **kwargs):
     for krec in record:
         varstr=rmn.fstluk(krec)
         datev = rpndate.RPNDate(varstr['datev']).toDateTime()
-	date.append(datev)
-	#print datev
+        date.append(datev)
+        #print datev
         logger.debug('datev: %s', datev.strftime('%c'))
         var.append(varstr['d'])
 
@@ -245,12 +245,12 @@ def read_fstd_multi_lev(fstd, nomvar, vfreq=0, **kwargs):
     lev=[]
     for krec in record:
         varstr=rmn.fstluk(krec)
-	## exclude variables that don't have the required output frequency (default 24)
-	if ( ( varstr['ip2'] - varstr['ip3' ] ) == vfreq or ( vfreq == 0 ) ):
-	    (rp1, rp2, rp3) = rmn.convertIPtoPK(varstr['ip1'], varstr['ip2'], varstr['ip3'])
-	    if ( ( rmn.FLOATIPtoList(rp1)[2] == 0) or (rmn.FLOATIPtoList(rp1)[2] == 4 ) ):  # MAKE SURE ON DEPTH NOT SIGMA LEVEL
+        ## exclude variables that don't have the required output frequency (default 24)
+        if ( ( varstr['ip2'] - varstr['ip3' ] ) == vfreq or ( vfreq == 0 ) ):
+            (rp1, rp2, rp3) = rmn.convertIPtoPK(varstr['ip1'], varstr['ip2'], varstr['ip3'])
+            if ( ( rmn.FLOATIPtoList(rp1)[2] == 0) or (rmn.FLOATIPtoList(rp1)[2] == 4 ) ):  # MAKE SURE ON DEPTH NOT SIGMA LEVEL
                var.append(varstr['d'])
-	       lev.append(rmn.FLOATIPtoList(rp1)[0])
+               lev.append(rmn.FLOATIPtoList(rp1)[0])
 
     rmn.fstcloseall(funit)
 
@@ -262,8 +262,8 @@ def read_fstd_multi_lev(fstd, nomvar, vfreq=0, **kwargs):
 def find_date_in_dates(dates, this_date):
     for ii, list_date in enumerate(dates):
         if ( list_date == this_date ):
-	    jj=ii
-	    date=list_date
+            jj=ii
+            date=list_date
     return jj, date
 
 def read_ip1(forecast, nomvar):
@@ -447,10 +447,10 @@ def read_yy_fstd_multi(fstd, nomvar, **kwargs):
     for krec in var_recs:
         varstr=rmn.fstluk(krec)
         datev = rpndate.RPNDate(varstr['datev']).toDateTime()
-	date.append(datev)
-	#print datev
+        date.append(datev)
+        #print datev
         #logger.debug('datev: %s', datev.strftime('%c'))
-	var.append(varstr['d'])
+        var.append(varstr['d'])
 
     # Prefered method to get grid lat, lon. Works on any RPNSTD grid
     # type (except 'X')
@@ -513,12 +513,12 @@ def read_yy_fstd_multi_lev(fstd, nomvar, **kwargs):
     for krec in var_recs:
         varstr=rmn.fstluk(krec)
         datev = rpndate.RPNDate(varstr['datev']).toDateTime()
-	date.append(datev)
-	#print datev
+        date.append(datev)
+        #print datev
         #logger.debug('datev: %s', datev.strftime('%c'))
-	var.append(varstr['d'])
-	(rp1, rp2, rp3) = rmn.convertIPtoPK(varstr['ip1'], varstr['ip2'], varstr['ip3'])
-	lev.append(rmn.FLOATIPtoList(rp1)[0])
+        var.append(varstr['d'])
+        (rp1, rp2, rp3) = rmn.convertIPtoPK(varstr['ip1'], varstr['ip2'], varstr['ip3'])
+        lev.append(rmn.FLOATIPtoList(rp1)[0])
 
     # Prefered method to get grid lat, lon. Works on any RPNSTD grid
     # type (except 'X')
@@ -561,7 +561,7 @@ def make_subgrid_fields(FLD, gid, nomvar='TT'):
           gid_tuple, __ = read_fstd_gid(gid, nomvar)
       elif ( isinstance(gid, int) ):
           sub_tuple = rmn.decodeGrid(gid)['subgridid']
-	  gid_tuple = [gid] + sub_tuple
+          gid_tuple = [gid] + sub_tuple
       elif ( isinstance(gid, tuple) ):
           gid_tuple = gid
 
@@ -581,11 +581,11 @@ def make_subgrid_fields(FLD, gid, nomvar='TT'):
           FLD1 = []
           for fld in FLD:
               fld0 = fld[:, 0:ny0]
-	      fld1 = fld[:, ny0:ny]
-	      FLD0.append(fld0)
-	      FLD1.append(fld1)
+              fld1 = fld[:, ny0:ny]
+              FLD0.append(fld0)
+              FLD1.append(fld1)
       elif ( isinstance(FLD, np.ndarray) ):
           FLD0 = FLD[:, 0:ny0]
-	  FLD1 = FLD[:, ny0:ny]
+          FLD1 = FLD[:, ny0:ny]
 
       return FLD0, FLD1

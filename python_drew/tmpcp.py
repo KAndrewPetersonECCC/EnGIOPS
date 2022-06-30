@@ -1,7 +1,7 @@
 import os
 import subprocess
 import random
-
+        
 def tmpcpold(file, tmpdir='/space/hall1/sitestore/eccc/mrd/rpnenv/dpe000/tmpdir'):
      subprocess.call([ 'mkdir', '-p', tmpdir])
      subprocess.call([ 'scp', file, tmpdir+'/'])
@@ -16,9 +16,9 @@ def tmprsync(file, tmpdir='/space/hall1/sitestore/eccc/mrd/rpnenv/dpe000/tmpdir'
      nile=tmpdir + '/' + bile
      return nile 
 
-def tmpcp(file, tmpdir='/space/hall1/sitestore/eccc/mrd/rpnenv/dpe000/tmpdir'):
+def tmpcp(file, tmpdir='/space/hall1/sitestore/eccc/mrd/rpnenv/dpe000/tmpdir',scp='sscp'):
      subprocess.call([ 'mkdir', '-p', tmpdir])
-     subprocess.call([ 'sscp', file, tmpdir+'/'])
+     subprocess.call([ scp, file, tmpdir+'/'])
      bile=os.path.basename(file)
      nile=tmpdir + '/' + bile
      return nile 
@@ -29,29 +29,29 @@ def gunzip(file):
     if ( file[-3:] == '.gz' ):
         nile = file[:-3]
         bile=os.path.basename(nile)
-	ddir=os.path.dirname(nile)
-	tile=ddir+'/tmp'+str(random.randint(0,100)).zfill(2)+'.'+bile+'.gz'
-	if ( os.path.isfile(nile) ):
-	    print 'file exists already'
-	    if ( os.path.isfile(file) ):
-	        subprocess.call([ 'mv', file, tile] )
-	        subprocess.call([ 'gunzip', tile])
-	        tile=tile[:-3]
-	        if ( os.path.isfile(tile) ):
-	            rc = subprocess.call([ 'diff', tile, nile])
-	            if ( rc == 0 ):
-	                print 'Removing duplicate', tile
-	                subprocess.call([ 'rm', tile])
-	            elif ( os.path.isfile(tile) ):
-	                print 'Clobbering existing', nile
-	                subprocess.call([ 'mv', tile, nile])
-	else:
-	    if ( os.path.isfile(file) ):
+        ddir=os.path.dirname(nile)
+        tile=ddir+'/tmp'+str(random.randint(0,100)).zfill(2)+'.'+bile+'.gz'
+        if ( os.path.isfile(nile) ):
+            print('file exists already')
+            if ( os.path.isfile(file) ):
+                subprocess.call([ 'mv', file, tile] )
+                subprocess.call([ 'gunzip', tile])
+                tile=tile[:-3]
+                if ( os.path.isfile(tile) ):
+                    rc = subprocess.call([ 'diff', tile, nile])
+                    if ( rc == 0 ):
+                        print('Removing duplicate', tile)
+                        subprocess.call([ 'rm', tile])
+                    elif ( os.path.isfile(tile) ):
+                        print('Clobbering existing', nile)
+                        subprocess.call([ 'mv', tile, nile])
+        else:
+            if ( os.path.isfile(file) ):
                 subprocess.call([ 'gunzip', file])
     else:
         nile = file
-        print 'WARNING '+file+' does not end in .gz :: NO CHANGE'
-	 
+        print('WARNING '+file+' does not end in .gz :: NO CHANGE')
+         
     return nile
 
 def tmpcpgz(file, tmpdir='/space/hall1/sitestore/eccc/mrd/rpnenv/dpe000/tmpdir'):
@@ -67,7 +67,7 @@ def cmcarc(file, arguements=["-v", "-t"], rm=False):
     command=['cmcarc']
     command.extend(arguements)
     command.extend(["-f", file])
-    print command
+    print(command)
     rc=subprocess.call(command)
     if ( rm ):
         subprocess.call(['rm', '-f', file])
@@ -80,6 +80,6 @@ def cdcmcarc(file, dir, arguements=["-v", "-x"],rm=False):
     rc=cmcarc(file, arguements=arguements, rm=rm)
     os.chdir(owd)
     rwd=os.getcwd()
-    #print owd, cwd, rwd
-    #print os.listdir(cwd)
+    #print(owd, cwd, rwd)
+    #print(os.listdir(cwd))
     return rc

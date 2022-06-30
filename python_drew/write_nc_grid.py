@@ -7,7 +7,7 @@ def write_nc_grid(fields, variables, file):
     ncfile = netCDF4.Dataset(file,'w') 
     ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
     (nx, ny) = fields[0].shape
-    #print 'nx, ny = ', nx, ny
+    #print('nx, ny = ', nx, ny)
     ncfile.createDimension('x',nx)
     ncfile.createDimension('y',ny)
     # create the variable (4 byte integer in this case)
@@ -18,19 +18,19 @@ def write_nc_grid(fields, variables, file):
     nv=len(variables)    
     # Error control on length of fields/variables.
     if ( nf != nv ):
-       print 'Error -- incompatible lengths', len(fields), len(variables)
+       print('Error -- incompatible lengths', len(fields), len(variables))
        
     data=[]
     for ifield in range(nf):
         field = fields[ifield]
-	variable=variables[ifield]
+        variable=variables[ifield]
         data.append(ncfile.createVariable(variable,np.dtype('float').char,('y','x')))
         # write data to variable.
         ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
         data[ifield][:] = np.transpose(field)
     # close the file.
     ncfile.close()
-    print '*** SUCCESS writing ncfile file '+file+'!'
+    print('*** SUCCESS writing ncfile file '+file+'!')
     return rc
 
 def write_nc_multi_grid(grids, fields, variables, file):
@@ -43,18 +43,18 @@ def write_nc_multi_grid(grids, fields, variables, file):
     nvariag=len(variables)
     
     if ( ( nfieldg != ngrids ) or ( nvariag != ngrids ) ):  
-        print 'Unequal tuples', nfieldg, nfieldg, nvariag
+        print('Unequal tuples', nfieldg, nfieldg, nvariag)
         ncfile.close()
-	rc = 99
-	return rc
-	
+        rc = 99
+        return rc
+        
     dimensions = []
     for igrid, grid in enumerate(grids):
         (nx, ny) = grid
-        print 'nx, ny = ', nx, ny
-	dimx = 'x'+str(igrid)
-	dimy = 'y'+str(igrid)
-	dimensions.append((dimx, dimy))
+        print('nx, ny = ', nx, ny)
+        dimx = 'x'+str(igrid)
+        dimy = 'y'+str(igrid)
+        dimensions.append((dimx, dimy))
         ncfile.createDimension(dimx,nx)
         ncfile.createDimension(dimy,ny)
 
@@ -66,21 +66,21 @@ def write_nc_multi_grid(grids, fields, variables, file):
         nv=len(variables[igrid])    
         # Error control on length of fields/variables.
         if ( nf != nv ):
-            print 'Error -- incompatible lengths', nf, nv
+            print('Error -- incompatible lengths', nf, nv)
             ncfile.close()
-	    rc=99
-	    return rc
+            rc=99
+            return rc
        
     for igrid, grid in enumerate(grids):
         (nx, ny) = grid
-	(dimx, dimy) = dimensions[igrid]
+        (dimx, dimy) = dimensions[igrid]
         nf=len(fields[igrid])    
         nv=len(variables[igrid])    
 
         data=[]
         for ifield in range(nf):
             field = fields[igrid][ifield]
-	    variable=variables[igrid][ifield]
+            variable=variables[igrid][ifield]
             data.append(ncfile.createVariable(variable,np.dtype('float').char,(dimy,dimx)))
             # write data to variable.
             ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
@@ -88,7 +88,7 @@ def write_nc_multi_grid(grids, fields, variables, file):
 
     # close the file.
     ncfile.close()
-    print '*** SUCCESS writing ncfile file '+file+'!'
+    print('*** SUCCESS writing ncfile file '+file+'!')
     return rc
 
 def write_nc3d_grid(fields, variables, dims, file):
@@ -111,7 +111,7 @@ def write_nc3d_grid(fields, variables, dims, file):
             pass
        
        
-    print 'nx, ny, nz = ', nx, ny, nz
+    print('nx, ny, nz = ', nx, ny, nz)
     ncfile.createDimension('x',nx)
     ncfile.createDimension('y',ny)
     if ( nz > 0 ):
@@ -124,25 +124,25 @@ def write_nc3d_grid(fields, variables, dims, file):
     nv=len(variables)    
     # Error control on length of fields/variables.
     if ( nf != nv ):
-       print 'Error -- incompatible lengths', len(fields), len(variables)
+       print('Error -- incompatible lengths', len(fields), len(variables))
        
     data=[]
     for ifield in range(nf):
         field = fields[ifield]
-	variable=variables[ifield]
-	if ( dims[ifield] == 2 ):
+        variable=variables[ifield]
+        if ( dims[ifield] == 2 ):
             data.append(ncfile.createVariable(variable,np.dtype('float').char,('y','x')))
             # write data to variable.
             ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
             data[ifield][:] = np.transpose(field)
-	elif ( dims[ifield] == 3 ):
+        elif ( dims[ifield] == 3 ):
             data.append(ncfile.createVariable(variable,np.dtype('float').char,('z','y','x')))
             # write data to variable.
             ##NOTE:  FIELDS with be output in netcdf as (nz, ny, nx)!!!
-	    data[ifield][:] = np.transpose(field, (0, 2, 1) )
+            data[ifield][:] = np.transpose(field, (0, 2, 1) )
     # close the file.
     ncfile.close()
-    print '*** SUCCESS writing ncfile file '+file+'!'
+    print('*** SUCCESS writing ncfile file '+file+'!')
     return rc
 
 def read_nc(file, variables):
@@ -152,13 +152,13 @@ def read_nc(file, variables):
     fld_tuple = []
     for var in variables:
         fld = dataset.variables[var][:]
-	# NEED TO TRANSPOSE TO FIT Standard File Standard of (x,y)
-	if ( fld.ndim == 2 ):
-	    fld_tuple.append(np.transpose(fld))
-	elif ( fld.ndim == 3 ):
-	    fld_tuple.append(np.transpose(fld, (0, 2, 1)))
-	else:
-	    fld_tuple.append(fld)
+        # NEED TO TRANSPOSE TO FIT Standard File Standard of (x,y)
+        if ( fld.ndim == 2 ):
+            fld_tuple.append(np.transpose(fld))
+        elif ( fld.ndim == 3 ):
+            fld_tuple.append(np.transpose(fld, (0, 2, 1)))
+        else:
+            fld_tuple.append(fld)
     dataset.close()
     return fld_tuple
 

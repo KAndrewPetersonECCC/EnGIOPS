@@ -1,9 +1,9 @@
 #!/bin/bash
-#ord_soumet /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh -cpus 1 -mpi -cm 64000M -t 10800 -shell=/bin/bash
-#bash /fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh
+#ord_soumet /fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh -cpus 1 -mpi -cm 64000M -t 10800 -shell=/bin/bash
+#bash /fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/produce_ensemble_plots.sh
 
-TDIR=/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS
-DDIR=/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives
+TDIR=/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS
+DDIR=/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives
 date=20201104
 PYENSB="[]"
 ENSB=(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
@@ -66,8 +66,8 @@ if [[ $? -ne 0 ]] ; then
    exit 99
 fi
 
-mkdir /fs/site3/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT}
-ln -s /fs/site3/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT} .
+mkdir /fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT}
+ln -s /fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/${PLOT} .
 PJOB=${TDIR}/JOBS/produce_ensemble_plots.${EXPT}.${PLOT}.${DATE}.py
 BJOB=${TDIR}/JOBS/produce_ensemble_plots.${EXPT}.${PLOT}.${DATE}.sh
 SJOB="ord_soumet ${BJOB} -cpus 1 -mpi -cm 64000M -t 10800 -shell=/bin/bash"
@@ -96,8 +96,10 @@ fi
 
 cd ${TDIR}
 export MPLBACKEND=agg
-source /home/dpe000/GEOPS/jobscripts/preconda.sh
-source activate metcarto
+
+source  /fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/jobscripts_drew/prepython.sh
+#source /home/dpe000/GEOPS/jobscripts/preconda.sh
+#source activate metcarto
 python ${PJOB}
 exit 0
 EOB

@@ -1,29 +1,29 @@
-#from importlib import reload
 import sys
-import os
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python_drew')
 import datetime
 import numpy as np
-import pickle
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.lines import Line2D
 import subprocess
-
+import time
+        
 import ola_functions
 import cplot
-import write_nc_grid
-import find_common
+import binfld
 
-import multiprocessing
-from functools import partial
+session = None
+def set_global_session():
+    global session
+    if not session:
+        session = requests.Session()
+    return
+    
+file='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/20201230/DIA/2020123000_SAM.ola'
 
-num_cpus = len(os.sched_getaffinity(0))
-file='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/20201230/DIA/2020123000_SAM.ola'
-
-site5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives'
-site6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
+site3='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives'
+site4='/fs/site4/eccc/mrd/rpnenv/dpe000/maestro_archives'
 
 dates = [20200304, 20200603, 20200902, 20201230]
 ens_list = range(21)
@@ -62,43 +62,25 @@ def check_date(date, outtype=str, dtlen=8):
       if ( isinstance(date, datetime.date) ): datestr=datetime.datetime(*date.timetuple()[:4])
     return datestr
 
-file='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/20201230/DIA/2020123000_SAM.ola'
+file='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/20201230/DIA/2020123000_SAM.ola'
 
-def subset_DF_LIST(DF_list, key_id, val):
-    NF_LIST = []
-    for DF in DF_list:
-        df =  ola_functions.subset_df(DF, key_id, val)
-        dfr = df.reset_index()
-        NF_LIST.append(dfr)
-    return NF_LIST
-        
-def read_DS_ensemble(expt, date, datadir=site5, enslist=ens_list, night=True, mp=True):
+def read_DS_ensemble(expt, date, datadir=site3, enslist=ens_list, night=True):
     date8 = check_date(date, dtlen=8)
     dated = check_date(date, dtlen=10)
 
-    input_files = []
-    nens=len(enslist)
+    DF_list = []
     for ie in enslist:
        ensstr=str(ie)
        print(datadir, expt, ensstr,date8, dated)
-       input_file=datadir+'/'+expt+ensstr+'/SAM2/'+date8+'/DIA/'+dated+'_SAM.ola' 
-       input_files.append(input_file)
-
-    if ( not mp ):
-        DF_list = []
-        for input_file in input_files:
-            DS = ola_functions.SST_DAY_dataframe(input_file,NIGHT=night)
-            DF_list.append(DS)
-    else:
-        nproc=min([num_cpus, nens])
-        read_pool = multiprocessing.Pool(nproc)
-        DF_list = read_pool.map(partial(ola_functions.SST_DAY_dataframe, NIGHT=night), input_files)
-        read_pool.join()
-        read_pool.close()
-        
-    return DF_list           
+       input_file=datadir+'/'+expt+ensstr+'/SAM2/'+date8+'/DIA/'+dated+'_SAM.ola'    
+       DS_SST, DS_SSTN, DS = ola_functions.SST_dataframe(input_file)
+       if ( night ): 
+           DF_list.append(DS_SSTN)
+       else:
+           DF_list.append(DS_SST)
+    return DF_list        
     
-def read_IS_ensemble(expt, date, datadir=site5, enslist=ens_list, satellite='ALL', mp=True):
+def read_IS_ensemble(expt, date, datadir=site3, enslist=ens_list, satellite='ALL'):
     date8 = check_date(date, dtlen=8)
     dated = check_date(date, dtlen=10)
     isat = 0
@@ -109,33 +91,32 @@ def read_IS_ensemble(expt, date, datadir=site5, enslist=ens_list, satellite='ALL
         satellite='NONE'
     SAT = satellite.upper()
 
-    input_files = []
+    DF_list = []
     for ie in enslist:
        ensstr=str(ie)
        print(datadir, expt, ensstr,date8, dated)
-       input_file=datadir+'/'+expt+ensstr+'/SAM2/'+date8+'/DIA/'+dated+'_SAM.ola' 
-       input_files.append(input_file)
+       input_file=datadir+'/'+expt+ensstr+'/SAM2/'+date8+'/DIA/'+dated+'_SAM.ola'    
+       df_IS_AL, df_IS_C2, df_IS_J2, df_IS_J3, df_IS_J2N, df_IS_H2, df_IS_S3A, df_IS = ola_functions.SSH_dataframe(input_file)
+       if ( ( SAT == 'ALL' ) or ( SAT == 'NONE' ) ): 
+           DF_list.append(df_IS)
+       elif ( ( SAT == 'ALTIKA' ) or ( SAT == 'AL' ) or ( isat == 13 ) ):
+           DF_list.append(df_IS_AL)
+       elif ( ( SAT == 'CRYOSAT2' ) or ( SAT == 'C2' ) or ( isat == 11 ) ):
+           DF_list.append(df_IS_C2)
+       elif ( ( SAT == 'JASON2' ) or ( SAT == 'J2' ) or ( isat == 3 ) ):
+           DF_list.append(df_IS_J2)
+       elif ( ( SAT == 'JASON3' ) or ( SAT == 'J3' ) or ( isat == 15 ) ):
+           DF_list.append(df_IS_J3)
+       elif ( ( SAT == 'JASON2N' ) or ( SAT == 'J2N' ) or ( isat == 16 ) ):
+           DF_list.append(df_IS_AL)
+       elif ( ( SAT == 'HY2A' ) or ( SAT == 'H2' ) or ( isat == 14 ) ):
+           DF_list.append(df_IS_H2)
+       elif ( ( SAT == 'SENTINEL3A' ) or ( SAT == 'SENTINEL') or ( SAT == 'S3A' ) or ( isat == 17 ) ):
+           DF_list.append(df_IS_S3A)
+       else:
+           DF_list.append(df_IS)
+    return DF_list           
 
-    if ( not mp ):  
-        DF_list = []
-        for input_file in input_files:
-            df_IS = ola_functions.SSH_SAT_dataframe(input_file, SAT=satellite)   
-            DF_list.append(df_IS)
-    else:
-        read_pool = multiprocessing.Pool(num_cpus)
-        DF_list = read_pool.map(partial(ola_functions.SSH_SAT_dataframe, SAT=satellite), input_files)
-        read_pool.close()
-        read_pool.join()
-    return DF_list
-
-def rewrite_IS_ensemble(expt, date, datadir=site5, enslist=ens_list, satellite='ALL', mp=True):
-    DF_list = read_IS_ensemble(expt, date, datadir=datadir, enslist=enslist, satellite=satellite, mp=mp)
-    NF_list = find_common.find_common_by_Tstp(DF_list, mp=mp)
-    
-    filename=diredir+'/'+expt+'/'+'DRU2'+'/'+'OLA_IS.'+sdate+'.pkl'
-    with open(filename,'wb') as fp:
-        pickle.dump(NF_LIST,fp)
-    
 def rank(list):
     posn = [ ( value > 0 ) for value in list ]
     rank_val = sum(posn)
@@ -163,7 +144,7 @@ def create_dates(date_start, date_final, date_inter):
         date = date + datetime.timedelta(days=date_inter)
     return dates
     
-def rank_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site5):
+def rank_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site3):
     nens=len(enslist)
     hist_sm = np.zeros(nens+1)
     for date in dates:
@@ -208,7 +189,7 @@ def plot_histograms(hist_np_list, labels, title, pfile):
     plt.close(fig)
     return
     
-def plot_rank_over_range(odir, expt, date_range, obstype='DS', enn=21, datadir=site5):
+def plot_rank_over_range(odir, expt, date_range, obstype='DS', enn=21, datadir=site3):
     enslist=range(enn)
     dateinc=7
     if ( len(date_range) > 2 ): dateinc=date_range[3]
@@ -223,7 +204,7 @@ def plot_rank_over_range(odir, expt, date_range, obstype='DS', enn=21, datadir=s
     plot_histogram(hist_sm, title, pfile)
     return
     
-def plot_ranks_over_range(oprefix, expts, date_range, labels=None, obstype='DS', enn=21, datadir=site5):
+def plot_ranks_over_range(oprefix, expts, date_range, labels=None, obstype='DS', enn=21, datadir=site3):
     print(expts)
     print(labels)
     print(None)
@@ -263,119 +244,89 @@ def ensemble_vari_misfit(DF_list):
     DF_mean['errvar'] = misfit_vari
     return DF_mean
 
-def bin_errors_init(ddeg=1):
-    grid_lon, grid_lat, lon_bin, lat_bin, grid_sum, grid_cnt = cplot.make_bin_grid(ddeg=ddeg)
-    bin_misfit , cnt_misfit = grid_sum.copy(), grid_cnt.copy()
-    bin_squerr , cnt_sqrerr = grid_sum.copy(), grid_cnt.copy()
-    LLS=[grid_lon, grid_lat, lon_bin, lat_bin]
-    BIN=[bin_misfit, bin_squerr, cnt_misfit, cnt_sqrerr]
-    return LLS, BIN
-    
-def add_DF_to_bin(DF, LLS, BIN):
-    [grid_lon, grid_lat, lon_bin, lat_bin] = LLS
-    [bin_misfit, bin_sqrerr, cnt_misfit, cnt_sqrerr]=BIN[:]
-    lon=DF['Lon'].values
-    lat=DF['Lat'].values
-    misfit = DF['misfit'].values
-    sqrerr = misfit**2
-    bin_misfit , cnt_misfit = cplot.binfldsumcum(lon, lat, misfit, lon_bin, lat_bin, bin_misfit, cnt_misfit)
-    bin_sqrerr , cnt_sqrerr = cplot.binfldsumcum(lon, lat, sqrerr, lon_bin, lat_bin, bin_sqrerr, cnt_sqrerr)
-    OBIN=[bin_misfit, bin_sqrerr, cnt_misfit, cnt_sqrerr]
-    return OBIN
-
-def bin_error_over_ensemble(expt, date, obstype='IS', ID='ALL', enslist=ens_list, datadir=site5):
-    LLS, BIN=bin_errors_init()
-    [bin_misfit, bin_sqrerr, cnt_misfit, cnt_sqrerr]=BIN[:]
-    OBIN = [bin_misfit.copy(), bin_sqrerr.copy(), cnt_misfit.copy(), cnt_sqrerr.copy()]
-	
-    if ( obstype=='DS' ):
-        night=False
-        if ( ID == 'night' ): 
-            night=True
-        DF_LIST = read_DS_ensemble(expt, date, datadir=datadir, enslist=ens_list, night=night)
-
-    if ( obstype=='IS' ):
-        DF_LIST = read_IS_ensemble(expt, date, datadir=datadir, enslist=ens_list, satellite=ID)
-
-    OBIN_LIST=[]
-    for DF in DF_LIST:
-        OBIN = add_DF_to_bin(DF, LLS, OBIN)
-        __, MBIN=bin_errors_init()
-        OBIN_LIST.append(add_DF_to_bin(DF, LLS, MBIN))
+def bin_errors_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site3, **kwargs):
+    night=True
+    satellite='ALL'
+    for key, value in kwargs.items():
+        print(key, value)
+        if ( key == 'night' ):
+            night=value
+        if ( key == 'satellite' ):
+            satellite=value
         
-    return LLS, OBIN, OBIN_LIST
     
-def bin_errors_over_erange(expt, dates, obstype='IS', enslist=ens_list, datadir=site5):
-    nens = len(enslist)
-    LLS, SBIN=bin_errors_init()
-    [grid_lon, grid_lat, lon_bin, lat_bin]=LLS
-    [sbin_misfit, sbin_sqrerr, scnt_misfit, scnt_sqrerr]=SBIN[:]
-    SBIN_LIST=[]
-    for iens in range(nens):
-        SBIN_LIST.append([sbin_misfit.copy(), sbin_sqrerr.copy(), scnt_misfit.copy(), scnt_sqrerr.copy()])
-    for idate, date in enumerate(dates):
-        __, OBIN, OBIN_LIST = bin_error_over_ensemble(expt, date, obstype=obstype, enslist=enslist, datadir=datadir)
-        [bin_misfit, bin_sqrerr, cnt_misfit, cnt_sqrerr]=OBIN[:]
-        [sbin_misfit, sbin_sqrerr, scnt_misfit, scnt_sqrerr]=SBIN[:]
-        SBIN =  [sbin_misfit+bin_misfit, sbin_sqrerr+bin_sqrerr, scnt_misfit+cnt_misfit, scnt_sqrerr+cnt_sqrerr]
-        for iens in range(nens):
-            [bin_misfit, bin_sqrerr, cnt_misfit, cnt_sqrerr]=OBIN_LIST[iens][:]
-            [sbin_misfit, sbin_sqrerr, scnt_misfit, scnt_sqrerr]=SBIN_LIST[iens][:]
-            SBIN_LIST[iens] =  [sbin_misfit+bin_misfit, sbin_sqrerr+bin_sqrerr, scnt_misfit+cnt_misfit, scnt_sqrerr+cnt_sqrerr]
-    
-    [sbin_misfit, sbin_sqrerr, scnt_misfit, scnt_sqrerr]=SBIN[:]
-    avg_misfit = cplot.binfldsumFIN(sbin_misfit, scnt_misfit)
-    avg_tsqerr = cplot.binfldsumFIN(sbin_sqrerr, scnt_sqrerr)
-    ERROR_LIST = []
-    for iens in range(nens):
-        [sbin_misfit, sbin_sqrerr, scnt_misfit, scnt_sqrerr]=SBIN_LIST[iens][:]
-        mavg_misfit = cplot.binfldsumFIN(sbin_misfit, scnt_misfit)
-        mavg_sqrerr = cplot.binfldsumFIN(sbin_sqrerr, scnt_sqrerr)
-        mspa_sqrerr = mavg_sqrerr - mavg_misfit**2
-        ERROR_LIST.append( (mavg_misfit, mavg_sqrerr, mspa_sqrerr, mavg_misfit-avg_misfit, mavg_sqrerr-avg_tsqerr, (mavg_misfit-avg_misfit)**2 ) )
-
-    VARIA_LIST = average_list_with_list(ERROR_LIST)
-    spa_sqrerr = VARIA_LIST[2]
-    for ierror, error in enumerate(VARIA_LIST):
-        print('ZERO', np.max(error), np.min(error))
-    avg_errvar = avg_tsqerr - spa_sqrerr - avg_misfit**2
-    avg_sqrerr = avg_tsqerr - avg_errvar 
-    return avg_misfit, avg_sqrerr, avg_errvar, avg_tsqerr, [grid_lon, grid_lat]    
-               
-def average_list_with_list(LIST_LIST):
-    AVG_LIST = []
-    nelements = len(LIST_LIST[0])
-    for ielement in range(nelements):
-        sublist = [ listsub[ielement] for listsub in LIST_LIST ]
-        AVG_LIST.append(sum(sublist) / len(sublist))
-    return AVG_LIST
-    
-def bin_errors_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site5):
-    grid_lon, grid_lat, lon_bin, lat_bin, grid_sum, grid_cnt = cplot.make_bin_grid(ddeg=1)
-    bin_misfit , cnt_misfit = grid_sum.copy(), grid_cnt.copy()
-    bin_squerr , cnt_squerr = grid_sum.copy(), grid_cnt.copy()
-    bin_errvar , cnt_errvar = grid_sum.copy(), grid_cnt.copy()
+    grid_lon, grid_lat, lon_bin, lat_bin, grid_sum, grid_cnt = binfld.make_bin_grid(ddeg=1)
     for date in dates:
-        DF_list = read_DS_ensemble(expt, date, enslist=enslist, datadir=datadir)
+        if ( obstype == 'DS' ):
+            DF_list = read_DS_ensemble(expt, date, enslist=enslist, datadir=datadir, night=night)
+        elif ( obstype == 'IS' ):
+            DF_list = read_IS_ensemble(expt, date, enslist=enslist, datadir=datadir, satellite=satellite)
         DF_mean = ensemble_vari_misfit(DF_list)
         lon = DF_mean['Lon'].values
         lat = DF_mean['Lat'].values
         misfit = DF_mean['misfit'].values
         squerr = misfit**2
         errvar = DF_mean['errvar'].values
-        bin_misfit , cnt_misfit = cplot.binfldsumcum(lon, lat, misfit, lon_bin, lat_bin, bin_misfit, cnt_misfit)
-        bin_squerr , cnt_squerr = cplot.binfldsumcum(lon, lat, squerr, lon_bin, lat_bin, bin_squerr, cnt_squerr)
-        bin_errvar , cnt_errvar = cplot.binfldsumcum(lon, lat, errvar, lon_bin, lat_bin, bin_errvar, cnt_errvar)
+        bin_misfit , cnt_misfit = binfld.binfldsumcum(lon, lat, misfit, lon_bin, lat_bin, bin_misfit, cnt_misfit)
+        bin_squerr , cnt_squerr = binfld.binfldsumcum(lon, lat, squerr, lon_bin, lat_bin, bin_squerr, cnt_squerr)
+        bin_errvar , cnt_errvar = binfld.binfldsumcum(lon, lat, errvar, lon_bin, lat_bin, bin_errvar, cnt_errvar)
     tot_cnt_misfit = np.sum(cnt_misfit)
     tot_cnt_squerr = np.sum(cnt_squerr)
     tot_cnt_errvar = np.sum(cnt_errvar)
     if ( tot_cnt_squerr != tot_cnt_misfit ): print('Warning, squerr/misfit cnt error', tot_cnt_misfit, tot_cnt_squerr)
     if ( tot_cnt_errvar != tot_cnt_misfit ): print('Warning, errvar/misfit cnt error', tot_cnt_misfit, tot_cnt_errvar)
-    avg_misfit = cplot.binfldsumFIN(bin_misfit, cnt_misfit)
-    avg_squerr = cplot.binfldsumFIN(bin_squerr, cnt_squerr)
-    avg_errvar = cplot.binfldsumFIN(bin_errvar, cnt_errvar)
-    avg_tsqerr = avg_squerr + avg_errvar   
-    return avg_misfit, avg_squerr, avg_errvar, avg_tsqerr, [grid_lon, grid_lat]
+    avg_misfit = binfld.binfldsumFIN(bin_misfit, cnt_misfit)
+    avg_squerr = binfld.binfldsumFIN(bin_squerr, cnt_squerr)
+    avg_errvar = binfld.binfldsumFIN(bin_errvar, cnt_errvar)
+  
+    return avg_misfit, avg_squerr, avg_errvar, [grid_lon, grid_lat]
+
+def bin_errors_date(expt, date, obstype='DS', enslist=ens_list, datadir=site3, **kwargs):
+    night=True
+    satellite='ALL'
+    for key, value in kwargs.items():
+        print(key, value)
+        if ( key == 'night' ):
+            night=value
+        if ( key == 'satellite' ):
+            satellite=value
+        
+    grid_lon, grid_lat, lon_bin, lat_bin, grid_sum, grid_cnt = binfld.make_bin_grid(ddeg=0.5)
+    bin_misfit_cum, cnt_misfit_cum = grid_sum.copy(), grid_cnt.copy()
+    bin_squerr_cum, cnt_squerr_cum = grid_sum.copy(), grid_cnt.copy()
+
+    if ( obstype == 'DS' ):
+        DF_list = read_DS_ensemble(expt, date, enslist=enslist, datadir=datadir, night=night)
+    elif (obstype == 'IS' ):
+        DF_list = read_IS_ensemble(expt, date, enslist=enslist, datadir=datadir, satellite=satellite)
+	
+    bin_misfit_list = []
+    bin_sqrerr_list = []
+    cnt_misfit_list = []
+    cnt_sqrerr_list = []
+    for DF in DF_list:
+        misfit = DF['misfit'].values
+	sqrerr = np.square(misfit)
+        bin_misfit, cnt_misfit = binfld.binfldsum(lon, lat, misfit, lon_bin, lat_bin)
+	bin_sqrerr, cnt_sqrerr = binfld.binfldsum(lon, lat, misfit, lon_bin, lat_bin)
+	bin_misfit_cum = bin_misfit_cum + bin_misfit
+	bin_sqrerr_cum = bin_sqrerr_cum + bin_sqrerr
+	cnt_misfit_cum = cnt_misfit_cum + cnt_misfit
+	cnt_sqrerr_cum = cnt_sqrerr_cum + cnt_sqrerr
+	bin_misfit = binfld.binfldsumFIN(bin_misfit, cnt_misfit)
+	bin_sqrerr = binfld.binfldsumFIN(bin_sqrerr, cnt_sqrerr)
+	bin_misfit_list.append( bin_misfit )
+	bin_sqrerr_list.append( bin_sqrerr )
+	cnt_misfit_list.append( cnt_misfit )
+	cnt_sqrerr_list.append( cnt_sqrerr )
+	
+   ensemble_mean_bin_misfit = sum(bin_misfit_list) / len(bin_misfit_list)
+   ensemble_mean_bin_sqrerr = sum(bin_sqrerr_list) / len(bin_sqrerr_list)
+
+   mean_ensemble_misfit = binfld.binfldsumFIN(bin_misfit_cum, cnt_misfit_cum)
+   mean_ensemble_sqrerr = binfld.binfldsumFIN(bin_sqrerr_cum, cnt_sqrerr_cum)
+  
+   return [grid_lon, grid_lat]
 
 CLEVA=np.arange(-0.9, 1.1, 0.2)
 CLEVF=np.arange(0, 1.1, 0.1)
@@ -394,52 +345,89 @@ def plot_binned_errors(LatLon, fields, titles, pfiles, anomis, clev_full=CLEVF, 
        if ( anomi == 1 ): 
            cmap=cmap_anom
            levels=clev_anom
-       cplot.pcolormesh(grid_lon, grid_lat, field, outfile=pfile, levels=levels, cmap=cmap)
+       cplot.pcolormesh(grid_lon, grid_lat, field, outfile=pfile, levels=levels, cmap=cmap, obar='horizontal')
    return
    
-def plot_errors_over_range(odir, expt, date_range, obstype='DS', enn=21, clev_full=CLEVF, clev_anom=CLEVA, datadir=site5, bin1st=False):
+def plot_errors_over_range(odir, expt, date_range, obstype='DS', enn=21, clev_full=CLEVF, clev_anom=CLEVA, datadir=site3):
     enslist=range(enn)
     dateinc=7
     if ( len(date_range) > 2 ): dateinc=date_range[3]
-    if ( len(date_range) > 1 ):
-        dates=create_dates(date_range[0], date_range[1], dateinc)
-        datestr0=check_date(date_range[0])
-        datestr1=check_date(date_range[1])
-        datestrc=datestr0+'_'+datestr1
-        datestrd=datestr0+'-'+datestr1
-    else:
-        dates=[date_range[0]]
-        datestr0=check_date(date_range[0])
-        datestrc=datestr0
-        datestrd=datestr0
-    title1='Mean Error '+datestrd
-    title2='RMSE Ensemble Mean '+datestrd
-    title3='STD. Dev. Ensemble '+datestrd
-    title4='RMSE Over Ensemble '+datestrd
+    dates=create_dates(date_range[0], date_range[1], dateinc)
+    datestr0=check_date(date_range[0])
+    datestr1=check_date(date_range[1])
+    datestrc=datestr0+'_'+datestr1
+    title1='Mean Error '+datestr0+'-'+datestr1
+    title2='RMSE Ensemble Mean '+datestr0+'-'+datestr1
+    title3='STD. Dev. Ensemble '+datestr0+'-'+datestr1
+    title4='Std. Dev. Error wrt Time '+datestr0+'-'+datestr1
     pfile1=odir+'/'+expt+'_'+datestrc+'.mean.png'
     pfile2=odir+'/'+expt+'_'+datestrc+'.rmse.png'
     pfile3=odir+'/'+expt+'_'+datestrc+'.vari.png'
-    pfile4=odir+'/'+expt+'_'+datestrc+'.rmst.png'
+    pfile4=odir+'/'+expt+'_'+datestrc+'.verr.png'
     
     titles=[title1, title2, title3, title4]
     pfiles=[pfile1, pfile2, pfile3, pfile4]
 
-    if ( not bin1st ):
-        avg_misfit, avg_squerr, avg_errvar, avg_tsqerr, [grid_lon, grid_lat] = bin_errors_over_range(expt, dates, obstype=obstype, enslist=enslist, datadir=datadir)
-    else:
-        avg_misfit, avg_squerr, avg_errvar, avg_tsqerr, [grid_lon, grid_lat] = bin_errors_over_erange(expt, dates, obstype=obstype, enslist=enslist, datadir=datadir) 
-    fields=[avg_misfit, avg_squerr, avg_errvar, avg_tsqerr]
-	
-    outfile=odir+'/'+expt+'_'+datestrc+'.errors.nc'
-    rc = write_nc_grid.write_nc_grid(fields, ['SSTerr', 'SSTsqe', 'SSTvar', 'SSTsqt'], outfile)
-
-
-    fields=[avg_misfit, np.sqrt(avg_squerr), np.sqrt(avg_errvar), np.sqrt(avg_errvar+avg_squerr)]
+    avg_misfit, avg_squerr, avg_errvar, [grid_lon, grid_lat] = bin_errors_over_range(expt, dates, obstype='DS', enslist=enslist, datadir=datadir)
+    avg_varerr = avg_squerr - np.square(avg_misfit)
+    fields=[avg_misfit, np.sqrt(avg_squerr), np.sqrt(avg_errvar), np.sqrt(avg_varerr)]
     plot_binned_errors([grid_lon, grid_lat], fields, titles, pfiles, [1, 0, 0, 0], clev_full=CLEVF, clev_anom=CLEVA)
+    xfields=[avg_misfit, np.sqrt(avg_squerr), np.sqrt(avg_varerr)]
+    yfields=[np.sqrt(avg_errvar), np.sqrt(avg_errvar), np.sqrt(avg_errvar)]
+    titles = ['Spread vs. Error', 'Spread vs. Error', 'Spread vs. Error']
+    ofile1 = odir+'/'+expt+'_'+datestrc+'.mean.scat.png'
+    ofile2 = odir+'/'+expt+'_'+datestrc+'.rmse.scat.png'
+    ofile3 = odir+'/'+expt+'_'+datestrc+'.verr.scat.png'
+    ofiles = [ofile1, ofile2, ofile3]
+    xlabels=['mean error', 'rmse error', 'std. error']
+    ylabels=['ens. std. dev.', 'ens. std. dev.', 'ens. std. dev.']
+    plot_scatter_onbin(xfields, yfields, titles, ofiles, xlabels, ylabels, [1, 0, 0, 0], [0, 0, 0, 0], grid_lat)
     
-    return [avg_misfit, avg_squerr, avg_errvar, avg_tsqerr] , [grid_lon, grid_lat]
+    return
 
-def plot_scatter(odir, expt, date, axis_range=[2, 2], obs_err=0.3, enslist=ens_list, datadir=site5):
+def plot_scatter_onbin(xfield, yfield, title, ofile, xlabel, ylabel, xanom, yanom, lat, obs_err=0.3):
+    xmax=2
+    ymax=2
+    amax=max([xmax, ymax])
+    
+    if ( isinstance(xfield, list) ):
+        for ifield, xfieldi in enumerate(xfield):
+            plot_scatter_onbin(xfield[ifield], yfield[ifield], title[ifield], ofile[ifield], xlabel[ifield], ylabel[ifield], xanom[ifield], yanom[ifield], lat)
+        return
+    ivalid = np.where(xfield.mask == False )
+    alat = np.absolute(lat[ivalid])
+    colors=[]
+    for ii in range(len(alat)):
+        if   ( alat[ii] < 15 ): colors.append('m')
+        elif ( alat[ii] < 30 ): colors.append('r')
+        elif ( alat[ii] < 45 ): colors.append('y')
+        elif ( alat[ii] < 60 ): colors.append('g')
+        elif ( alat[ii] < 75 ): colors.append('c')
+        elif ( alat[ii] < 90 ): colors.append('b')
+    fig, axe = plt.subplots()
+    axe.scatter(xfield[ivalid], yfield[ivalid], color=colors,s=0.1)  
+    axe.plot([0,     amax], [0, amax], color='k')
+    if ( xanom == 1 ): 
+        axe.plot([0,-1.0*amax], [0, amax], color='k')
+        axe.set_xlim([-1.0*xmax, xmax])
+    else:
+        axe.set_xlim([0, xmax])
+    if ( yanom == 1 ): 
+        axe.set_ylim([-1.0*ymax, ymax])
+        axe.plot([0, amax], [0, -1.0*amax], color='k')
+        if ( xanom == 1 ):
+            axe.plot([0,-1.0*amax], [0, -1.0*amax], color='k')
+    else:
+        axe.set_ylim([0, ymax])
+    axe.set_xlabel(xlabel)
+    axe.set_ylabel(ylabel)
+    circle = plt.Circle((0.0, 0.0), obs_err, color='k', fill=False)
+    axe.add_patch(circle)
+    fig.savefig(pfile+'.png')
+    plt.close(fig)
+    return pfile+'.png'
+
+def plot_scatter(odir, expt, date, axis_range=[2, 2], obs_err=0.3, enslist=ens_list, datadir=site3):
     xmax=axis_range[0]
     ymax=axis_range[1]
     amax=np.max([xmax, ymax])
@@ -477,7 +465,7 @@ def plot_scatter(odir, expt, date, axis_range=[2, 2], obs_err=0.3, enslist=ens_l
     plt.close(fig)
     return pfile+'.png'
 
-def plot_scatter_in_range(odir, expt, date_range, axis_range=[2, 2], obs_err=0.3, enn=21, datadir=site5):
+def plot_scatter_in_range(odir, expt, date_range, axis_range=[2, 2], obs_err=0.3, enn=21, datadir=site3):
     enslist=range(enn)
     dateinc=7
     if ( len(date_range) > 2 ): dateinc=date_range[3]

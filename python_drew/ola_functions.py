@@ -4,8 +4,11 @@ import os, sys, getopt
 import numpy as np
 import pandas as pd
 from netCDF4 import num2date
+import time
+from collections import OrderedDict
 
 # IS=InSitu ; VP=Vertical Profile (Argo) ; UV=Velocity? ; DS=SST (G6 analysis)
+test_file='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/20201230/DIA/2020123000_SAM.ola'
 
 family = ['IS','VP','UV','DS']
 
@@ -213,3 +216,91 @@ def subset_df(df, key_id, val):
         df_sub = df[df[key_id] == val ]
     return df_sub
    
+def VP_dataframe(input_file):
+
+    # Model levels depths
+    depth = np.loadtxt('/home/kch001/scripts/SAM2_diagnostics/GIOPS/constants/GIOPS_depths')
+    nlevels=int(len(depth)-1)
+    depth = np.concatenate((depth[1:], depth[1:]))
+    maxMVS = int(nlevels*2)   # Maximum levels number
+    ip_jkdta_TEM = 2     # the first index for SST, only for present and before GIOPS300b
+    #ip_jkdta_TEM = 0
+
+    rga_VP, iga_VP = read_data(input_file, 'VP')
+    nv, nprf = rga_VP.shape
+    ni, npri = iga_VP.shape
+
+    df_g = pd.DataFrame(np.nan, index=[], columns=[])
+
+    if ( nprf != npri ):
+        print('Inconsistent number profiles: nprf/npri', nprf, npri)
+        return df_g
+        
+    if (nv != maxMVS*5+7):  
+        print('Wrong dimension: nv in rga_VP', nv, maxMVS)
+        return df_g
+    
+    #if (ni != maxMVS*2+10):   # for GIOPSv2
+    if (ni != maxMVS*2+11):   # for GIOPSv3
+        print('Wrong dimension: ni in iga_VP', ni. maxMVS)
+        return df_g
+
+    #Initialization
+    df_g = pd.DataFrame(np.nan, index=[], columns=[])
+    vo = np.empty((maxMVS, nprf)) * np.nan
+    vf = np.empty((maxMVS, nprf)) * np.nan
+    vg = np.empty((maxMVS, nprf)) * np.nan
+    dv = np.empty((maxMVS, nprf)) * np.nan
+    dep = np.empty((maxMVS, nprf)) * np.nan
+    start = time.time()
+    df_list = []
+    
+    for pr in range(nprf):
+        nmvs = iga_VP[9, pr]
+        idx = np.arange(nmvs)
+        kk = iga_VP[idx+10, pr] - ip_jkdta_TEM
+        if int(kk.max()) >= maxMVS:
+            print("problem with profile: {0}".format(pr))
+            print("kk.max(), maxMVS", kk.max(), maxMVS, pr)
+            continue
+        if int(kk.min()) < 0:
+            print("problem with profile: {0}".format(pr))
+            print("kk.max(), maxMVS", kk.max(), maxMVS, pr)
+            continue
+        kk = kk[iga_VP[idx+10+maxMVS, pr] == 0].tolist()
+        vo[kk, pr] = rga_VP[idx+3, pr]
+        vf[kk, pr] = rga_VP[idx+3+maxMVS*1, pr]
+        vg[kk, pr] = rga_VP[idx+3+maxMVS*2, pr]   # What is this?  
+        dv[kk, pr] = rga_VP[idx+3+maxMVS*3, pr]
+        dep[kk, pr] = depth[kk]
+        vo_T = vo[:nlevels, pr]
+        vo_S = vo[nlevels:, pr]
+        vf_T = vf[:nlevels, pr]
+        vf_S = vf[nlevels:, pr]
+        dv_T = dv[:nlevels, pr]
+        dv_S = dv[nlevels:, pr]
+        lon = np.repeat(np.array(rga_VP[0, pr]), nlevels)
+        lat = np.repeat(np.array(rga_VP[1, pr]), nlevels)
+        date = np.repeat(np.array(rga_VP[2, pr]), nlevels) 
+        depth_T = dep[:nlevels, pr]
+        depth_S = dep[nlevels:, pr]
+        dic = OrderedDict([('lon', lon),
+                           ('lat', lat),
+                           ('depth_T', depth_T),
+                           ('depth_S', depth_S),  
+                           ('date', date),
+                           ('voT', vo_T),
+                           ('voS', vo_S),
+                           ('vfT', vf_T),
+                           ('vfS', vf_S),
+                           ('misfitT', dv_T),
+                           ('misfitS', dv_S)])
+        df = pd.DataFrame.from_dict(dic)
+        del dic
+        df_list.append(df)
+    npri=len(df_list)
+    print("Found : {0}/{1} profiles   Treated in {2} s".format(nprf, npri, time.time()-start)  )  
+    
+    df_g = pd.concat(df_list, axis=0, ignore_index=True, copy=False)
+    return df_g
+    

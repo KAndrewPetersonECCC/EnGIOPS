@@ -220,11 +220,11 @@ def VP_dataframe(input_file):
 
     # Model levels depths
     depth = np.loadtxt('/home/kch001/scripts/SAM2_diagnostics/GIOPS/constants/GIOPS_depths')
-    nlevels=int(len(depth)-1)
-    depth = np.concatenate((depth[1:], depth[1:]))
-    maxMVS = int(nlevels*2)   # Maximum levels number
+    nlevels=int(len(depth))
+    depth = np.concatenate((depth[:], depth[:]))
+    maxMVS = int((nlevels-1)*2)   # Maximum levels number
     ip_jkdta_TEM = 2     # the first index for SST, only for present and before GIOPS300b
-    #ip_jkdta_TEM = 0
+    ip_jkdta_TEM = 1
 
     rga_VP, iga_VP = read_data(input_file, 'VP')
     nv, nprf = rga_VP.shape
@@ -247,11 +247,11 @@ def VP_dataframe(input_file):
 
     #Initialization
     df_g = pd.DataFrame(np.nan, index=[], columns=[])
-    vo = np.empty((maxMVS, nprf)) * np.nan
-    vf = np.empty((maxMVS, nprf)) * np.nan
-    vg = np.empty((maxMVS, nprf)) * np.nan
-    dv = np.empty((maxMVS, nprf)) * np.nan
-    dep = np.empty((maxMVS, nprf)) * np.nan
+    vo = np.empty((2*nlevels, nprf)) * np.nan
+    vf = np.empty((2*nlevels, nprf)) * np.nan
+    vg = np.empty((2*nlevels, nprf)) * np.nan
+    dv = np.empty((2*nlevels, nprf)) * np.nan
+    dep = np.empty((2*nlevels, nprf)) * np.nan
     start = time.time()
     df_list = []
     
@@ -259,7 +259,7 @@ def VP_dataframe(input_file):
         nmvs = iga_VP[9, pr]
         idx = np.arange(nmvs)
         kk = iga_VP[idx+10, pr] - ip_jkdta_TEM
-        if int(kk.max()) >= maxMVS:
+        if int(kk.max()) >= 2*nlevels:
             print("problem with profile: {0}".format(pr))
             print("kk.max(), maxMVS", kk.max(), maxMVS, pr)
             continue
@@ -268,6 +268,9 @@ def VP_dataframe(input_file):
             print("kk.max(), maxMVS", kk.max(), maxMVS, pr)
             continue
         kk = kk[iga_VP[idx+10+maxMVS, pr] == 0].tolist()
+        #print('kk', kk)
+        #if ( min(kk) <= 1 or max(kk) > 97 ):
+        #  print('kk', min(kk), max(kk), pr)
         vo[kk, pr] = rga_VP[idx+3, pr]
         vf[kk, pr] = rga_VP[idx+3+maxMVS*1, pr]
         vg[kk, pr] = rga_VP[idx+3+maxMVS*2, pr]   # What is this?  
@@ -279,6 +282,8 @@ def VP_dataframe(input_file):
         vf_S = vf[nlevels:, pr]
         dv_T = dv[:nlevels, pr]
         dv_S = dv[nlevels:, pr]
+        nT=len(np.where(np.isfinite(vo_T))[0])
+        nS=len(np.where(np.isfinite(vo_S))[0])
         lon = np.repeat(np.array(rga_VP[0, pr]), nlevels)
         lat = np.repeat(np.array(rga_VP[1, pr]), nlevels)
         date = np.repeat(np.array(rga_VP[2, pr]), nlevels) 

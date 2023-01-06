@@ -1,17 +1,17 @@
 #!/bin/bash -x
-#ord_soumet /home/dpe000/EnGIOPS/jobscripts_drew/test_simple.sh -cpus 40 -cm 64000M -t 21600 -shell=/bin/bash
+#ord_soumet /home/dpe000/EnGIOPS/jobscripts/test_simple.sh -cpus 40 -cm 64000M -t 21600 -shell=/bin/bash
 
 WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
 
 export MPLBACKEND=agg
-source jobscripts_drew/prepython.sh
+source jobscripts/prepython.sh
 
 python << EOD
 
 import sys
 import os
-sys.path.insert(0, '/home/dpe000/EnGIOPS/python_drew')
+sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 mpl.use('Agg')

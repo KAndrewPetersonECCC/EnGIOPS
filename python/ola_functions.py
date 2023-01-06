@@ -28,7 +28,7 @@ def skip_header(f):
     Len_end = struct.unpack(">I", f.read(4))[0] #; print Len_end
     if (Len_end != Len_bgn):
         sys.exit(' records wrong:: TM')
-    Len_bgn = struct.unpack(">I", f.read(4))[0] #; print Len_bgn
+    Len_bgn = struct.unpack(">I", f.read(4))[0] #; print Len_bgn=
     Ndup    = struct.unpack(">4I", f.read(4 * 4)) #; print Ndup 
     jpwork_array = struct.unpack(">8I", f.read(8 * 4)) #; print jpwork_array
     jpwork_array = np.array(jpwork_array).reshape(4,2).transpose() #; print jpwork_array
@@ -184,17 +184,17 @@ def subset_SSH_dataframe(df_IS, SAT='ALL'):
         df_subset = df_IS
     elif ( ( SAT == 'ALTIKA' ) or ( SAT == 'AL' ) or ( SAT == '13' ) ):
         df_subset = df_IS[df_IS['setID'] == 13]
-    elif ( ( SAT == 'CRYOSAT2' ) or ( SAT == 'C2' ) or ( isat == '11' ) ):
+    elif ( ( SAT == 'CRYOSAT2' ) or ( SAT == 'C2' ) or ( SAT == '11' ) ):
         df_subset = df_IS[df_IS['setID'] == 11]
-    elif ( ( SAT == 'JASON2' ) or ( SAT == 'J2' ) or ( isat == '3' ) ):
+    elif ( ( SAT == 'JASON2' ) or ( SAT == 'J2' ) or ( SAT == '3' ) ):
         df_subset = df_IS[df_IS['setID'] == 3]
-    elif ( ( SAT == 'JASON3' ) or ( SAT == 'J3' ) or ( isat == '15' ) ):
+    elif ( ( SAT == 'JASON3' ) or ( SAT == 'J3' ) or ( SAT == '15' ) ):
         df_subset = df_IS[df_IS['setID'] == 15]
-    elif ( ( SAT == 'JASON2N' ) or ( SAT == 'J2N' ) or ( isat == '16' ) ):
+    elif ( ( SAT == 'JASON2N' ) or ( SAT == 'J2N' ) or ( SAT == '16' ) ):
         df_subset = df_IS[df_IS['setID'] == 16]
-    elif ( ( SAT == 'HY2A' ) or ( SAT == 'H2' ) or ( isat == '14' ) ):
+    elif ( ( SAT == 'HY2A' ) or ( SAT == 'H2' ) or ( SAT == '14' ) ):
         df_subset = df_IS[df_IS['setID'] == 14]
-    elif ( ( SAT == 'SENTINEL3A' ) or ( SAT == 'SENTINEL') or ( SAT == 'S3A' ) or ( isat == 17 ) ):
+    elif ( ( SAT == 'SENTINEL3A' ) or ( SAT == 'SENTINEL') or ( SAT == 'S3A' ) or ( SAT == '17' ) ):
         df_subset = df_IS[df_IS['setID'] == 17]
     else:
         df_subset = df_IS
@@ -273,7 +273,7 @@ def VP_dataframe(input_file):
         #  print('kk', min(kk), max(kk), pr)
         vo[kk, pr] = rga_VP[idx+3, pr]
         vf[kk, pr] = rga_VP[idx+3+maxMVS*1, pr]
-        vg[kk, pr] = rga_VP[idx+3+maxMVS*2, pr]   # What is this?  
+        vg[kk, pr] = rga_VP[idx+3+maxMVS*2, pr]   # What is this?  VALUE FROM ANALYSIS.  NOT USED
         dv[kk, pr] = rga_VP[idx+3+maxMVS*3, pr]
         dep[kk, pr] = depth[kk]
         vo_T = vo[:nlevels, pr]

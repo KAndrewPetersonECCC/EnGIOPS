@@ -7,6 +7,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import numpy as np
 import datetime
+import pytz
 import os.path
 import netCDF4
 import scipy.interpolate
@@ -88,10 +89,20 @@ def loop_dates_with_command(date_range, command=SH_COMMS["PLOTS"], expts='GIOPS_
         date=date+datetime.timedelta(days=7)
     return
 
+def read_sam2_times(file=default_file, fld='time_counter', T_ref=datetime.datetime(1950,1,1, 0,0,0,0, pytz.UTC)):
+    dataset = netCDF4.Dataset(file)
+    Tsec = dataset.variables[fld][:].astype(int)
+    Timestamp = []
+    for tsec in Tsec:
+        Timestamp.append(T_ref + datetime.timedelta(seconds=int(tsec)))
+    
+    return Timestamp
+               
 def read_sam2_levels(file=default_file, fld='deptht'):
     dataset = netCDF4.Dataset(file)
-    ZED = dataset.variables[fld][:]
-    return ZED
+    depth = dataset.variables[fld][:]
+    
+    return depth
                
 def read_sam2_grid(file, fld='thetao'):
     dataset = netCDF4.Dataset(file)
@@ -106,6 +117,8 @@ def read_sam2_grid(file, fld='thetao'):
 
     lat=np.transpose(lat)
     lon=np.transpose(lon)
+    
+    dataset.close()
     
     return lon, lat, TM
     

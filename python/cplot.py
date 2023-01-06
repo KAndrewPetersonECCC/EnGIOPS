@@ -181,7 +181,7 @@ def bin_pcolormesh(lon, lat, field, levels=None, ticks=None,
     grid_lon, grid_lat, grid_fld = binfld(lon, lat, field, ddeg=ddeg)
     pcolormesh(grid_lon, grid_lat, grid_fld, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=outfile, 
                box=box, make_global=make_global, title=title, suptitle=suptitle, 
-               cbar=cbar, obar=obar,fontsizes=fontsizes
+               cbar=cbar, obar=obar,fontsizes=fontsizes,
                **kwargs)
     return
    
@@ -265,7 +265,7 @@ def quiver(lon, lat, ufield, vfield, levels=None, cmap=dmap, project='PlateCarre
         
 def scatter(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='PlateCarree', outfile='plt.png', 
                box=[-180, 180, -90, 90], make_global=False, title='', suptitle=None, 
-               cbar=True, obar='vertical', fontsizes=None, **kwargs):
+               cbar=True, obar='vertical', fontsizes=None, s=5, **kwargs):
 
     title_fontsize = fontsizes
     cbar_fontsize = fontsizes
@@ -294,10 +294,10 @@ def scatter(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='PlateC
         ax.set_extent(box, crs=ccrs.PlateCarree())
     if ( isinstance(norm, type(None) ) ):
         #mesh = ax.scatter(lon.flatten(), lat.flatten(), field.flatten(), cmap=cmap,transform=pcarree)
-        scat = ax.scatter(x=lon, y=lat, c=field, s=5, alpha=0.5, transform=ccrs.PlateCarree(), cmap=cmap,) ## Important
+        scat = ax.scatter(x=lon, y=lat, c=field, s=s, alpha=0.5, transform=ccrs.PlateCarree(), cmap=cmap, marker='s') ## Important
     else:
         #mesh = ax.scatter(lon, lat, field, norm=norm, cmap=dmap,transform=pcarree)
-        scat = ax.scatter(x=lon.flatten(), y=lat.flatten(), c=field.flatten(), s=5, alpha=0.5, transform=ccrs.PlateCarree(), cmap=cmap, norm=norm) ## Important
+        scat = ax.scatter(x=lon.flatten(), y=lat.flatten(), c=field.flatten(), s=s, alpha=0.5, transform=ccrs.PlateCarree(), cmap=cmap, norm=norm, marker='s') ## Important
     scat.set_cmap(cmap)
     if ( cbar ): 
         #print('cbar', cbar_fontsize)

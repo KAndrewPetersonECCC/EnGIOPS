@@ -162,3 +162,62 @@ def read_nc(file, variables):
     dataset.close()
     return fld_tuple
 
+def write_profiles(fields, lons, lats, depths, variables, file):
+    rc = 0
+    # open a new netCDF file for writing.
+    ncfile = netCDF4.Dataset(file,'w') 
+    ##NOTE:  FIELDS with be output in netcdf as (Npro, nz)!!!
+    nz=0 ; 
+    ne=0 ;
+    for field in fields:
+        if ( field.ndim == 1 ):
+            nz=field.shape
+            Npro=1
+        elif (field.ndim == 2 ):
+            Npro, nz = field.shape
+        elif ( field.ndim == 3 ):
+            Npro, ne, nz = field.shape
+            
+           
+    print('Npro, ne, nz = ', Npro, ne, nz)
+    #create Npro as record dimension
+    ncfile.createDimension('Npro',None)
+    if ( ne > 0 ):
+       ncfile.createDimension('ne',ne) 
+    ncfile.createDimension('nz',nz)
+    # create the variable (4 byte integer in this case)
+    # first argument is name of variable, second is datatype, third is
+    # a tuple with the names of dimensions.
+
+    nf=len(fields)    
+    nv=len(variables)   
+    nl=len(lons)
+    nm=len(lats) 
+    # Error control on length of fields/variables.
+    if ( nf != nv ):
+       print('Error -- incompatible lengths', len(fields), len(variables))
+    if ( nl != Npro ):
+       print('Error -- incompatible lengths', len(fields), len(variables))
+    if ( nm != Npro ):
+       print('Error -- incompatible lengths', len(fields), len(variables))
+       
+    data=[]
+    data.append(ncfile.createVariable('lon', np.dtype('float').char,('Npro')))
+    data[0][:] = np.array(lons)
+    data.append(ncfile.createVariable('lat', np.dtype('float').char,('Npro')))
+    data[1][:] = np.array(lats)
+    data.append(ncfile.createVariable('depth', np.dtype('float').char,('nz')))
+    data[2][:] = np.array(depths)
+    for ifield in range(nf):
+        field = fields[ifield]
+        variable=variables[ifield]
+        if ( field.ndim <= 2 ):
+            data.append(ncfile.createVariable(variable, np.dtype('float').char,('Npro','nz')))
+        else:
+            data.append(ncfile.createVariable(variable, np.dtype('float').char,('Npro','ne', 'nz')))
+        data[3+ifield][:] = field
+    # close the file.
+    ncfile.close()
+    print('*** SUCCESS writing ncfile file '+file+'!')
+    return rc
+ 

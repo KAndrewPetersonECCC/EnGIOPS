@@ -10,6 +10,7 @@ import math
 plt.rc('text', usetex=False)
 
 dmap = 'RdBu_r'
+dmap = 'seismic'
 missing = -999.
 
 def make_projections(**kwargs):
@@ -102,7 +103,7 @@ def grdfld(lon, lat, field, ddeg=0.5, method='nearest', central_longitude=0):
     
     return grid_lon, grid_lat, grid_fld
 
-def binfld(lon, lat, field, ddeg=2.0,central_longitude=0):
+def binfld(lon, lat, field, ddeg=2.0,central_longitude=0, statistic='mean'):
     lon_bin=np.arange(-180,180+ddeg,ddeg)+central_longitude
     lat_bin=np.arange(-90, 90+ddeg, ddeg)
     lon_mid = (lon_bin[1:] + lon_bin[:-1]) / 2
@@ -110,7 +111,7 @@ def binfld(lon, lat, field, ddeg=2.0,central_longitude=0):
     grid_lat, grid_lon = np.meshgrid(lat_mid, lon_mid) 
     lon = cycle_lon(lon, central_longitude=central_longitude)
     grid_fld, xedges, yedges, binnumber = ss.binned_statistic_2d(lon.flatten(), lat.flatten(), values=field.flatten(), 
-       statistic='mean', bins=[lon_bin, lat_bin])
+       statistic=statistic, bins=[lon_bin, lat_bin])
        
     return grid_lon, grid_lat, grid_fld
 

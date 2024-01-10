@@ -1,4 +1,4 @@
-from importlib import reload
+#from importlib import reload
 import sys
 this_dir='/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python'
 sys.path.insert(0, this_dir)
@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import datetime
 import numpy as np
 import scipy.stats
+import subprocess
 
 
 import fft_giops
@@ -15,6 +16,8 @@ import check_date
 import rank_histogram
 import read_grid
 import isoheatcontent
+import write_nc_grid
+import ctile
 
 hir5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
 hir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
@@ -32,7 +35,7 @@ def read_test_fld(var='T'):
     return lone, late, ETFLD, MTFLD
 
 def test1():  
-    lonee, late, ETFLD, MTFLD = read_test_fld()
+    lone, late, ETFLD, MTFLD = read_test_fld()
 
     gdx = 25.0 #km
     LLGRID, BOX = fft_giops.create_box( (-172,0), size=2000.0, dx=gdx, theta=0.0 )
@@ -78,20 +81,21 @@ def test1():
     MFLD_PSD = sum(EFLD_PSD) / len(EFLD_PSD)
     
     N = len(FLD_PSD)
-    wavenumber = 2*np.pi * np.fft.fftfreq(N, gdx)  # actually sampling frequency (so mult by 2pi for k)
+    wavenumber = np.fft.fftfreq(N, gdx)  # actually sampling frequency (so mult by 2pi for k)
     L = int((N-1)/2)
 
-    plt.loglog(2*np.pi/wavenumber[1:L+1], FLD_PSD[1:L+1], color='b')
-    plt.loglog(2*np.pi/wavenumber[1:L+1], MFLD_PSD[1:L+1], color='r')
+    plt.loglog(1.0/wavenumber[1:L+1], FLD_PSD[1:L+1], color='b')
+    plt.loglog(1.0/wavenumber[1:L+1], MFLD_PSD[1:L+1], color='r')
     plt.savefig('psd.png')
     plt.close()
 
-    plt.loglog(2*np.pi/wavenumber[1:L+1], FLD_PSD[1:L+1]/MFLD_PSD[1:L+1], color='k')
+    plt.loglog(1.0/wavenumber[1:L+1], FLD_PSD[1:L+1]/MFLD_PSD[1:L+1], color='k')
     plt.savefig('rpsd.png')
     plt.close()
     return
 
-def create_BOXES(gdx=25.0, GDX=2000.0, threshold=0.95):
+BOX_DNFO = { 'gdx' : 20.0, 'GDX': 1000, 'threshold' : 0.95}
+def create_BOXES(gdx=BOX_DNFO['gdx'], GDX=BOX_DNFO['GDX'], threshold=BOX_DNFO['threshold']):
     CEARTH=40000
     #GDX=2500.0 #km
     #gdx = 25.0 #km
@@ -104,9 +108,12 @@ def create_BOXES(gdx=25.0, GDX=2000.0, threshold=0.95):
 
     BOXES=[]
     GRIDS=[]
-    NBOX =  np.floor(CEARTH / 2 / GDX).astype(int)
-    LATS = np.arange(NBOX) * (180.0/NBOX) - 90
-    LATS = LATS[1:-1]
+    LATL = CEARTH / 2 / 180
+    LATT = LATL * (80+84)
+    NBOX =  np.floor(LATT / GDX).astype(int)
+    LATS = np.arange(NBOX) * (80.0+84) / NBOX - 80
+    print(LATS)
+    #LATS = LATS[1:-1]
     #print(LATS)
     for LAT in LATS:
         NBOX =  np.floor(CEARTH * np.cos(np.deg2rad(LAT+8)) / GDX).astype(int)
@@ -137,17 +144,48 @@ def create_BOXES(gdx=25.0, GDX=2000.0, threshold=0.95):
     print('Number of BOXES', len(NEW_BOXES))    
     return NEW_BOXES, NEW_GRIDS, LATS
 
-def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST'):
+#fourier_analysis.test_cycle(dates=rank_histogram.create_dates(20210609, 20210630,7), var='SST', GDX=900, gdx=10, LL_SW=(-165, 72) )  # Beaufort Sea for Charlie.
+def read_field(expt, date, var, ddir=mir5, file_pre='ORCA025-CMC-ANAL_1d_'):
+    date = check_date.check_date(date, outtype=datetime.datetime)
+    if ( var == 'D20' ):
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_')
+    else:
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_')
+    ESST = [ np.squeeze(eTFLD/1) for eTFLD in ETFLD]
+    if ( var == 'T' ):
+        level=22
+        ESST = [ np.squeeze(eSST[level,:,:]/1) for eSST in ESST]
+        deptht=read_dia.read_sam2_levels()
+        print('Subsetting to ', deptht[level])
+    if ( var[1:] == 'sppt' ):
+       level=2
+       ESST = [ np.squeeze(eSST[level,:,:]/1) for eSST in ESST[1:]]
+       deptht=read_dia.read_sam2_levels()
+       print('Subsetting to ', deptht[level])
+       print('Removed ENS 0')
+    ne = len(ESST)
+    if ( var == 'D20' ):
+        NSST = []
+        bottom=read_grid.bottom_depth_mesh()
+        deptht=read_dia.read_sam2_levels()
+        for eSST in ESST:
+           D_iso = isoheatcontent.isotherm(eSST.data, tmask, deptht, bottom, Tlevel=20)
+           D_msk = np.ma.array(D_iso, mask=(1-tmask[0,:,:]).astype(bool))
+           NSST.append(D_msk)
+        ESST=NSST
+    MSST = sum(ESST)/ne
+    return MSST, ESST, (lone, late)
+    
+def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST', gdx=25.0, GDX=2500, LL_SW=(-172, 0) ):
     oar=var
     if ( var == 'T' ): oar='T100'
     tmask = np.squeeze(read_grid.read_mask(var='tmask'))
-    GDX=2500.0 #km 
-    gdx = 25.0 #km
-    LLGRID, BOX = fft_giops.create_box( (-172,0), size=GDX, dx=gdx, theta=0.0 )
+    LLGRID, BOX = fft_giops.create_box( LL_SW, size=GDX, dx=gdx, theta=0.0 )
+    print('BOX', BOX)
     Nx, Ny = LLGRID[0].shape
     if ( Nx == Ny ): N=Nx
 
-    knorm = fft_giops.find_wavenumber_norm(N, gdx)
+    knorm, kwave = fft_giops.find_wavenumber_norm(N, gdx)
     kbins, kvals = fft_giops.setup_Kbins(N, gdx)
 
     Mbins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
@@ -159,56 +197,44 @@ def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST
     lst = [0, 1, 7, 14]
     nt=len(dates)
     lst = [0, nt-1]
-    if ( len(dates) > 5 ):
+    if ( len(dates) < 5 ):
         lst = list(range(4))
-    elif ( len(dates) > 8 ):
-        lst = [0, 4, 6, 8]
-    elif ( len(dates) > 13 ):
-        lst = [0, 4, 8, 13]
-    elif ( len(dates) > 26 ):
-         lst = [0, 4, 13, 26]
+    elif ( len(dates) < 8 ):
+        lst = [0, 2, 4, 6]
+    elif ( len(dates) < 13 ):
+        lst = [0, 4, 8, 12]
+    elif ( len(dates) < 26 ):
+         lst = [0, 4, 13, 20]
     for idate, date in enumerate(dates):
         print(date)
-        if ( var == 'D20' ):
-            lone, late, ETFLD = read_dia.read_ensemble(mir5, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_')
-        else:
-            lone, late, ETFLD = read_dia.read_ensemble(mir5, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_')
-        ESST = [ np.squeeze(eTFLD/1) for eTFLD in ETFLD]
-        if ( var == 'T' ):
-            level=22
-            ESST = [ np.squeeze(eSST[level,:,:]/1) for eSST in ESST]
-            deptht=read_dia.read_sam2_levels()
-            print('Subsetting to ', deptht[level])
-        ne = len(ESST)
-        if ( var == 'D20' ):
-            NSST = []
-            bottom=read_grid.bottom_depth_mesh()
-            deptht=read_dia.read_sam2_levels()
-            for eSST in ESST:
-               D_iso = isoheatcontent.isotherm(eSST.data, tmask, deptht, bottom, Tlevel=20)
-               D_msk = np.ma.array(D_iso, mask=(1-tmask[0,:,:]).astype(bool))
-               NSST.append(D_msk)
-            ESST=NSST
         MSST = sum(ESST)/ne
+        MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var)
+        ne = len(ESST)
+
         if ( idate == 0 ):
-           fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=[BOX], outfile='Box.'+oar+'.png')
+           #fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=[BOX], outfile='Box.'+oar+'.png')
+           fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='NorthPolarStereo',box=[-180, 180, 60, 90], obar='horizontal', plot_boxes=[BOX], outfile='Box.'+oar+'.png')
         SST_BOX = fft_giops.interpolate_to_box_with_mask(MSST, (lone, late), LLGRID, method='nearest')
         PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
+        kw, PSW = fft_giops.get_welch_psd(SST_BOX)
         Mbins_add, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
         Mbins = Mbins+Mbins_add
+        PSE = np.zeros(PSD)
         for eSST in ESST:
             SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, (lone, late), LLGRID, method='nearest')
             PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
+            kw, PSW = fft_giops.get_welch_psd(SST_BOX)
+            PSE = PSE + PSW/ne
             Ebins_add, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
             Ebins = Ebins+Ebins_add/ne
         if ( idate in lst ):
             print(idate, lst.index(idate))
-            ax.loglog(2*np.pi/kvals, Mbins/(idate+1), linestyle='-', color=clr[lst.index(idate)], label=str(idate))
-            ax.loglog(2*np.pi/kvals, Ebins/(idate+1), linestyle='--', color=clr[lst.index(idate)], label=str(idate))
-            ar.semilogx(2*np.pi/kvals, Mbins/Ebins, linestyle='-', color=clr[lst.index(idate)], label=str(idate))
-    ax.loglog(2*np.pi/kvals, Mbins/nt, linestyle='-', color='k', label=str(nt))
-    ax.loglog(2*np.pi/kvals, Ebins/nt, linestyle='--', color='k', label=str(nt))
-    ar.semilogx(2*np.pi/kvals, Mbins/Ebins, linestyle='-', color='k', label=str(nt))
+            ax.loglog(1.0/kvals, Mbins/(idate+1), linestyle='-', color=clr[lst.index(idate)], label=str(idate))
+            ax.loglog(1.0/kvals, Ebins/(idate+1), linestyle='--', color=clr[lst.index(idate)], label=str(idate))
+            ar.semilogx(1.0/kvals, Mbins/Ebins, linestyle='-', color=clr[lst.index(idate)], label=str(idate))
+    ax.loglog(1.0/kvals, Mbins/nt, linestyle='-', color='k', label=str(nt))
+    ax.loglog(1.0/kvals, Ebins/nt, linestyle='--', color='k', label=str(nt))
+    ar.semilogx(1.0/kvals, Mbins/Ebins, linestyle='-', color='k', label=str(nt))
     ax.legend()
     ax.set_xlabel("$lambda$")
     ax.set_ylabel("$P(k)$")
@@ -223,166 +249,589 @@ def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST
     plt.close(fir)
     return
 
-# Suspect I will not be able to cycle both dates and boxes.  Get them working first -- and then we will likely need intermediate output.    
-def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=create_BOXES(gdx=25.0, GDX=1500, threshold=0.95)):
-    BOXES, GRIDS, LATS = BOX_INFO 
+# Suspect I will not be able to cycle both dates and boxes.  Get them working first -- and then we will likely need intermediate output.   
+
+def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
+    datestr = check_date.check_date(date, outtype=str)
+    outdir='BOX_'+datestr+'/'
+    rc=subprocess.call(['mkdir', outdir])
+    BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
     oar=var
     if ( var == 'T' ): oar='T100'
     tmask = np.squeeze(read_grid.read_mask(var='tmask'))
-    GDX=1500.0 #km 
-    gdx = 25.0 #km
+    GDX=1000.0 #km 
+    gdx = 20.0 #km
     #LLGRID, BOX = fft_giops.create_box( (-172,0), size=GDX, dx=gdx, theta=0.0 )
     nbox = len(BOXES)
     print('NUMBER OF BOXES', nbox)
 
     Nx, Ny = GRIDS[0][0].shape
     if ( Nx == Ny ): N=Nx
+    npsd = int((N+1)/2)
 
-    knorm = fft_giops.find_wavenumber_norm(N, gdx)
-    kbins, kvals = fft_giops.setup_Kbins(N, gdx)
+    #knorm, kwave = fft_giops.find_wavenumber_norm(N, gdx)
+    #kwave = kwave[:npsd]
+    #kbins, kvals = fft_giops.setup_Kbins(N, gdx)
+    
+    kwave = fft_giops.find_wavenumber(N,gdx)
+    kwave = kwave[:npsd]
+    
 
-    Mbins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    Ebins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    fig, ax = plt.subplots()
-    fir, ar = plt.subplots()
+    #Mbins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
+    #Ebins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
     lats = [-70, -55, -35]
     clr = ['r', 'c', 'g', 'b', 'm']
     clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     ncol=len(clr)
 
-    if ( var == 'D20' ):
-        lone, late, ETFLD = read_dia.read_ensemble(mir5, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_')
-    else:
-        lone, late, ETFLD = read_dia.read_ensemble(mir5, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_')
-    ESST = [ np.squeeze(eTFLD/1) for eTFLD in ETFLD]
-    if ( var == 'T' ):
-        level=22
-        ESST = [ np.squeeze(eSST[level,:,:]/1) for eSST in ESST]
-        deptht=read_dia.read_sam2_levels()
-        print('Subsetting to ', deptht[level])
+    MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var)
     ne = len(ESST)
-    if ( var == 'D20' ):
-        NSST = []
-        bottom=read_grid.bottom_depth_mesh()
-        deptht=read_dia.read_sam2_levels()
-        for eSST in ESST:
-           D_iso = isoheatcontent.isotherm(eSST.data, tmask, deptht, bottom, Tlevel=20)
-           D_msk = np.ma.array(D_iso, mask=(1-tmask[0,:,:]).astype(bool))
-           NSST.append(D_msk)
-        ESST=NSST
-    MSST = sum(ESST)/ne
-    fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=BOXES, outfile='BOX/'+oar+'.png')
-    Mbins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    Ebins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    fig, ax = plt.subplots()
-    fir, ar = plt.subplots()
+
+    fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=BOXES, outfile=outdir+oar+'.png')
+    #Mbins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
+    #Ebins, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
+    #fig, ax = plt.subplots()
+    #fir, ar = plt.subplots()
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
     lcol = -1
-    Mbins_list = []
-    Ebins_list = []
+    #Mbins_list = []
+    #Ebins_list = []
+    PSM_list = []
+    PSE_list = []
+    PSA = np.zeros(npsd)
+    PSB = np.zeros(npsd)
     for ibox, BOX in enumerate(BOXES):
         print(ibox, nbox, BOX)
         lat = BOX[0][1]
         icol = 0
         for ii, LAT in enumerate(LATS):
             if ( lat > LAT-1 ): icol=ii
-        big, bax = plt.subplots()
-        bir, bar = plt.subplots()
+        #big, bax = plt.subplots()
+        #bir, bar = plt.subplots()
+        #cig, cax = plt.subplots()
+        #cir, car = plt.subplots()
         LLGRID = GRIDS[ibox]
         SST_BOX = fft_giops.interpolate_to_box_with_mask(MSST, (lone, late), LLGRID, method='nearest')
-        PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
-        Mbins_add, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
-        Mbins = Mbins+Mbins_add/nbox
-        Ebins_add, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
+        #PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
+        KW, PSM = fft_giops.get_welch_psd(SST_BOX)
+        #Mbins_add, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
+        #Mbins = Mbins+Mbins_add/nbox
+        PSA = PSA + PSM / nbox
+        #Ebins_add, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
+        PSE = np.zeros(npsd)
         for eSST in ESST:
             SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, (lone, late), LLGRID, method='nearest')
-            PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
-            Ebins_edd, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
-            Ebins_add = Ebins_add+Ebins_edd/ne
-        Ebins = Ebins+Ebins_add/nbox
+            #PSD, FFT = fft_giops.get_fft_ps(SST_BOX)
+            kw, PSW = fft_giops.get_welch_psd(SST_BOX)
+            PSE = PSE + PSW/ne
+            #Ebins_edd, _, _ = scipy.stats.binned_statistic(knorm.flatten(), PSD.flatten(), statistic = "mean", bins = kbins)
+            #Ebins_add = Ebins_add+Ebins_edd/ne
+        #Ebins = Ebins+Ebins_add/nbox
+        PSB = PSB+PSE/nbox
         if ( lcol < icol ): 
             lcol=icol
-            ax.loglog(2*np.pi/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
-            ar.semilogx(2*np.pi/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            #ax.loglog(1.0/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            #ar.semilogx(1.0/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
         else:
-            ax.loglog(2*np.pi/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol])
-            ar.semilogx(2*np.pi/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol])
-        ax.loglog(2*np.pi/kvals, Ebins_add, linestyle='--', color=clr[icol%ncol])
-        bax.loglog(2*np.pi/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol], label='Ensemble Mean')
-        bax.loglog(2*np.pi/kvals, Ebins_add, linestyle='--', color=clr[icol%ncol], label='Mean Ensemble')
-        bar.semilogx(2*np.pi/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol], label=str(ibox))
-        bax.legend()
+            #ax.loglog(1.0/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol])
+            #ar.semilogx(1.0/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol])
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol])
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol])
+        #ax.loglog(1.0/kvals, Ebins_add, linestyle='--', color=clr[icol%ncol])
+        bx.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color=clr[icol%ncol])
+        #bax.loglog(1.0/kvals, Mbins_add, linestyle='-', color=clr[icol%ncol], label='Ensemble Mean')
+        #bax.loglog(1.0/kvals, Ebins_add, linestyle='--', color=clr[icol%ncol], label='Mean Ensemble')
+        #cax.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol], label='Ensemble Mean')
+        #cax.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color=clr[icol%ncol], label='Mean Ensemble')
+        #bar.semilogx(1.0/kvals, Mbins_add/Ebins_add, linestyle='-', color=clr[icol%ncol], label=str(ibox))
+        #car.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol], label=str(ibox))
+        #bax.legend()
+        #cax.legend()
         crstr = '('+str(BOX[0][0])+'E, '+ str(BOX[0][1])+'N)'
-        bax.set_title('PSD Box '+str(ibox).zfill(3)+' Corner:'+crstr)
-        bax.set_xlabel("$lambda$")
-        bax.set_ylabel("$P(k)$")
-        big.tight_layout()
-        big.savefig("BOX/GPSD_loglog."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
-        plt.close(big)
-        bar.set_title('Ratio Box '+str(ibox).zfill(3)+' Corner:'+crstr)
-        bar.set_xlabel("$lambda$")
-        bar.set_ylabel("Ratio")
-        bir.tight_layout()
-        bir.savefig("BOX/GPSD_ratio."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
-        plt.close(bir)
-        Mbins_list.append(Mbins_add)
-        Ebins_list.append(Ebins_add)
-    ax.loglog(2*np.pi/kvals, Mbins, linestyle='-', color='k', label='Global Mean')
-    ax.loglog(2*np.pi/kvals, Ebins, linestyle='--', color='k')
-    ar.semilogx(2*np.pi/kvals, Mbins/Ebins, linestyle='-', color='k', label='Global Mean')
-    ax.legend()
-    ax.set_xlabel("$lambda$")
-    ax.set_ylabel("$P(k)$")
-    fig.tight_layout()
-    fig.savefig("BOX/GPSD_loglog."+oar+".png", dpi = 300, bbox_inches = "tight")
-    plt.close(fig)
-    ar.legend()
-    ar.set_xlabel("$lambda$")
-    ar.set_ylabel("Ratio")
-    fir.tight_layout()
-    fir.savefig("BOX/GPSD_ratio."+oar+".png", dpi = 300, bbox_inches = "tight")
-    plt.close(fir)
-    
-    return kvals, Mbins, Ebins, Mbins_list, Ebins_list   
+        #bax.set_title('PSD Box '+str(ibox).zfill(3)+' Corner:'+crstr)
+        #bax.set_xlabel("$lambda$")
+        #bax.set_ylabel("$P(k)$")
+        #cax.set_title('Welch PSD Box '+str(ibox).zfill(3)+' Corner:'+crstr)
+        #cax.set_xlabel("$lambda$")
+        #cax.set_ylabel("$P(k)$")
+        #big.tight_layout()
+        #big.savefig(outdir+"GPSD_loglog."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
+        #cig.tight_layout()
+        #cig.savefig(outdir+"GPSW_loglog."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
+        #plt.close(big)
+        #plt.close(cig)
+        #bar.set_title('Ratio Box '+str(ibox).zfill(3)+' Corner:'+crstr)
+        #bar.set_xlabel("$lambda$")
+        #bar.set_ylabel("Ratio")
+        #car.set_title('Welch Ratio Box '+str(ibox).zfill(3)+' Corner:'+crstr)
+        #car.set_xlabel("$lambda$")
+        #car.set_ylabel("Ratio")
+        #bir.tight_layout()
+        #bir.savefig(outdir+"PSD_ratio."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
+        #plt.close(bir)
+        #cir.tight_layout()
+        #cir.savefig(outdir+"PSW_ratio."+oar+"."+str(ibox).zfill(3)+".png", dpi = 300, bbox_inches = "tight")
+        #plt.close(cir)
+        #Mbins_list.append(Mbins_add)
+        #Ebins_list.append(Ebins_add)
+        PSM_list.append(PSM)
+        PSE_list.append(PSE)
+    #ax.loglog(1.0/kvals, Mbins, linestyle='-', color='k', label='Global Mean')
+    #ax.loglog(1.0/kvals, Ebins, linestyle='--', color='k')
+    #ar.semilogx(1.0/kvals, Mbins/Ebins, linestyle='-', color='k', label='Global Mean')
+    #ax.legend()
+    #ax.set_xlabel("$lambda$")
+    #ax.set_ylabel("$P(k)$")
+    #fig.tight_layout()
+    #fig.savefig(outdir+"PSD_loglog."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    #plt.close(fig)
+    #ar.legend()
+    #ar.set_xlabel("$lambda$")
+    #ar.set_ylabel("Ratio")
+    #fir.tight_layout()
+    #fir.savefig(outdir+"PSD_ratio."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    #plt.close(fir)
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+    #fig, ax = plt.subplots()
+    #fir, ar = plt.subplots()
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    #ax.loglog(1.0/kvals, Mbins, linestyle='-', color='k', label='Ensemble Mean')
+    #ax.loglog(1.0/kvals, Ebins, linestyle='--', color='k', label='Mean Ensemble Members')
+    #ar.semilogx(1.0/kvals, Mbins/Ebins, linestyle='-', color='k', label='Ratio')
+    #ax.legend()
+    #ax.set_xlabel("$lambda$")
+    #ax.set_ylabel("$P(k)$")
+    #fig.tight_layout()
+    #fig.savefig(outdir+"PSD_loglog."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    #plt.close(fig)
+    #ar.legend()
+    #ar.set_xlabel("$lambda$")
+    #ar.set_ylabel("Ratio")
+    #fir.tight_layout()
+    #fir.savefig(outdir+"PSD_ratio."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    #plt.close(fir)
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
 
-def cycle_dates_global(var, dates=rank_histogram.create_dates(20210609, 20220601,7)):
-    ndates=len(dates)
-    BOX_INFO=create_BOXES(gdx=gdx, GDX=GDX, threshold=0.95)
-    BOXES, GRIDS, LATS = BOX_INFO 
+    PSA_fulllist = [PSA]+PSM_list 
+    PSB_fulllist = [PSB]+PSE_list
+    PSA_array = np.array(PSA_fulllist)
+    PSB_array = np.array(PSB_fulllist)
+    print(PSA_array.shape)
+    print(PSB_array.shape)
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+   
+    #return kvals, Mbins, Ebins, Mbins_list, Ebins_list   
+    return kwave, PSA_fulllist, PSB_fulllist
+
+def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
+    datestr = check_date.check_date(date, outtype=str)
+    outdir='BOX_'+datestr+'/'
+    rc=subprocess.call(['mkdir', outdir])
+    BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
+    oar=var
+    if ( var == 'T' ): oar='T100'
+    tmask = np.squeeze(read_grid.read_mask(var='tmask'))
+    GDX=1000.0 #km 
+    gdx = 20.0 #km
+    #LLGRID, BOX = fft_giops.create_box( (-172,0), size=GDX, dx=gdx, theta=0.0 )
     nbox = len(BOXES)
+    print('NUMBER OF BOXES', nbox)
+
     Nx, Ny = GRIDS[0][0].shape
     if ( Nx == Ny ): N=Nx
-    knorm = fft_giops.find_wavenumber_norm(N, gdx)
-    kbins, kvals = fft_giops.setup_Kbins(N, gdx)
+    npsd = int((N+1)/2)
 
+    kwave = fft_giops.find_wavenumber(N,gdx)
+    kwave = kwave[:npsd]
+    
+    lats = [-70, -55, -35]
+    clr = ['r', 'c', 'g', 'b', 'm']
     clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    ncol=len(clr)
 
-    Mbins_sum, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    Ebins_sum, __, __ = scipy.stats.binned_statistic(knorm.flatten(), np.zeros(knorm.shape).flatten(), statistic = "mean",bins = kbins)
-    dat_fig, dat_ax = plt.subplots()
-    dat_fir, dat_ar = plt.subplots()
-    Mbins_sum_list = []
-    Ebins_sum_list = []
-    lst_fig = []
-    lst_fig = []
-    for ibox in range(nbox):
-        Mbins_sum_list.append(Mbins_sum.copy())
-        Ebins_sum_list.append(Ebins_sum.copy())
-        tmp_fig, tmp_ax = plt.subplots()
-        lst_fig.append((tmp_fig, tmp_ax))
-        tmp_fir, tmp_ar = plt.subplots()
-        lst_fig.append((tmp_fir, tmp_ax))
-    for date in dates:
-        kvals, Mbins, Ebins, Mbins_list, Ebins_list = box_cycle(date=date, var=var, BOX_INFO=BOX_INFO)
-        Mbins_sum = Mbins_sum + Mbins
-        Ebins_sum = Ebins_sum + Ebins
-        for ibox in range(nbox):
-            Mbins_sum_list[ibox] = Mbins_sum_list[ibox] + Mbins_list[ibox]
-            Ebins_sum_list[ibox] = Ebins_sum_list[ibox] + Ebins_list[ibox]
-    Mbins_sum = Mbins_sum / ndates
-    Ebins_sum = Ebins_sum / ndates
-    for ibox in range(nbox):
-        Mbins_sum_list[ibox] = Mbins_sum_list[ibox] / ndates
-        Ebins_sum_list[ibox] = Ebins_sum_list[ibox] / ndates
+    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var)
+    ne = len(ESST)
+
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    lcol = -1
+    PSM_list = []
+    PSE_list = []
+    PSA = np.zeros(npsd)
+    PSB = np.zeros(npsd)
+    for ibox, BOX in enumerate(BOXES):
+        print(ibox, nbox, BOX)
+        lat = BOX[0][1]
+        icol = 0
+        for ii, LAT in enumerate(LATS):
+            if ( lat > LAT-1 ): icol=ii
+        LLGRID = GRIDS[ibox]
+        SST_BOX = fft_giops.interpolate_to_box_with_mask(MSST, LONLAT, LLGRID, method='2sweep')
+        KW, PSM = fft_giops.get_welch_psd(SST_BOX)
+        PSA = PSA + PSM / nbox
+        PSE = np.zeros(npsd)
+        for eSST in ESST:
+            SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, LONLAT, LLGRID, method='2sweep')
+            kw, PSW = fft_giops.get_welch_psd(SST_BOX)
+            PSE = PSE + PSW/ne
+        PSB = PSB+PSE/nbox
+        if ( lcol < icol ): 
+            lcol=icol
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+        else:
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol])
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol])
+        bx.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color=clr[icol%ncol])
+        crstr = '('+str(BOX[0][0])+'E, '+ str(BOX[0][1])+'N)'
+        PSM_list.append(PSM)
+        PSE_list.append(PSE)
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+
+    PSA_fulllist = [PSA]+PSM_list 
+    PSB_fulllist = [PSB]+PSE_list
+    PSA_array = np.array(PSA_fulllist)
+    PSB_array = np.array(PSB_fulllist)
+    print(PSA_array.shape)
+    print(PSB_array.shape)
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+   
+    return kwave, PSA_fulllist, PSB_fulllist
+
+def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='2sweep'):
+    datestr = check_date.check_date(date, outtype=str)
+    outdir='BOX_'+datestr+'/'
+    rc=subprocess.call(['mkdir', outdir])
+    BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
+    oar=var
+    if ( var == 'T' ): oar='T100'
+    tmask = np.squeeze(read_grid.read_mask(var='tmask'))
+    GDX=1000.0 #km 
+    gdx = 20.0 #km
+    #LLGRID, BOX = fft_giops.create_box( (-172,0), size=GDX, dx=gdx, theta=0.0 )
+    nbox = len(BOXES)
+    print('NUMBER OF BOXES', nbox)
+
+    Nx, Ny = GRIDS[0][0].shape
+    if ( Nx == Ny ): N=Nx
+    npsd = int((N+1)/2)
+
+    kwave = fft_giops.find_wavenumber(N,gdx)
+    kwave = kwave[:npsd]
     
+    lats = [-70, -55, -35]
+    clr = ['r', 'c', 'g', 'b', 'm']
+    clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    ncol=len(clr)
     
+    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var)
+    ne = len(ESST)
+    
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    lcol = -1
+    PSM_list = []
+    PSE_list = []
+    PSA = np.zeros(npsd)
+    PSB = np.zeros(npsd)
+
+    print('PERFORMING INTERPOLATION')
+    SST_BOXES = fft_giops.interpolate_to_boxes(MSST, LONLAT, GRIDS, method=method)
+    SST_EBOXES = []
+    for eSST in ESST:
+        SST_eBOXES = fft_giops.interpolate_to_boxes(eSST, LONLAT, GRIDS, method=method)
+        SST_EBOXES.append(SST_eBOXES)
+
+    print('PERFORMING PSD')
+    for ibox, BOX in enumerate(BOXES):
+        print(ibox, nbox, BOX)
+        lat = BOX[0][1]
+        icol = 0
+        for ii, LAT in enumerate(LATS):
+            if ( lat > LAT-1 ): icol=ii
+        LLGRID = GRIDS[ibox]
+        SST_BOX = SST_BOXES[ibox]
+        KW, PSM = fft_giops.get_welch_psd(SST_BOX)
+        PSA = PSA + PSM / nbox
+        PSE = np.zeros(npsd)
+        for ie, eSST in enumerate(ESST):
+            SST_BOX = SST_EBOXES[ie][ibox]
+            #SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, LONLAT, LLGRID, method='linear')
+            kw, PSW = fft_giops.get_welch_psd(SST_BOX)
+            PSE = PSE + PSW/ne
+        PSB = PSB+PSE/nbox
+        if ( lcol < icol ): 
+            lcol=icol
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol], label=str(LATS[lcol]))
+        else:
+            bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color=clr[icol%ncol])
+            br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color=clr[icol%ncol])
+        bx.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color=clr[icol%ncol])
+        crstr = '('+str(BOX[0][0])+'E, '+ str(BOX[0][1])+'N)'
+        PSM_list.append(PSM)
+        PSE_list.append(PSE)
+    print('PERFORMING PLOTTING')
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.all'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    bx.loglog(1.0/kwave[1:], PSA[1:], linestyle='-', color='k', label='Global Mean')
+    bx.loglog(1.0/kwave[1:], PSB[1:], linestyle='--', color='k')
+    br.semilogx(1.0/kwave[1:], PSA[1:]/PSB[1:], linestyle='-', color='k', label='Global Mean')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    gig.savefig(outdir+"PSW_loglog."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    gir.savefig(outdir+"PSW_ratio."+oar+'.glb'+".png", dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+
+    PSA_fulllist = [PSA]+PSM_list 
+    PSB_fulllist = [PSB]+PSE_list
+    PSA_array = np.array(PSA_fulllist)
+    PSB_array = np.array(PSB_fulllist)
+    print(PSA_array.shape)
+    print(PSB_array.shape)
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+   
+    return kwave, PSA_fulllist, PSB_fulllist
+
+def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):  
+    date_list = check_date.check_date_list(date_list, outtype=datetime.datetime)
+    BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
+
+    oar=var
+    if ( var == 'T' ): oar='T100'
+    nbox = len(BOXES)
+    print('NUMBER OF BOXES', nbox)
+
+    Nx, Ny = GRIDS[0][0].shape
+    if ( Nx == Ny ): N=Nx
+    npsd = int((N+1)/2)
+    print(N, npsd)
+
+    kwave = fft_giops.find_wavenumber(npsd-1,BOX_INFO['gdx'])
+    kwav2 = fft_giops.find_wavenumber(npsd,BOX_INFO['gdx'])
+    kwave = kwave[:npsd]
+    
+    psd_mean_list = []
+    psd_memb_list = []
+    
+    KT05 = []  
+    KTMN = []  
+    for date in date_list:
+        datestr = check_date.check_date(date, outtype=str)
+        if ( var == 'K15' ):
+          ncfile = 'BOX/'+'U15'+'_psd_'+datestr+'.nc'
+          kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          ncfile = 'BOX/'+'V15'+'_psd_'+datestr+'.nc'
+          kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          psd_mean = 0.5 * (upsd_mean+vpsd_mean)
+          psd_memb = 0.5 * (upsd_memb+vpsd_memb)
+        elif ( var == 'KE0' ):
+          ncfile = 'BOX/'+'SSU'+'_psd_'+datestr+'.nc'
+          kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          ncfile = 'BOX/'+'SSV'+'_psd_'+datestr+'.nc'
+          kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          psd_mean = 0.5 * (upsd_mean+vpsd_mean)
+          psd_memb = 0.5 * (upsd_memb+vpsd_memb)
+        elif ( var == 'TAUK' ):
+          ncfile = 'BOX/'+'TAUX'+'_psd_'+datestr+'.nc'
+          kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          ncfile = 'BOX/'+'TAUY'+'_psd_'+datestr+'.nc'
+          kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          psd_mean = 0.5 * (upsd_mean+vpsd_mean)
+          psd_memb = 0.5 * (upsd_memb+vpsd_memb)
+        else:
+          ncfile = 'BOX/'+var+'_psd_'+datestr+'.nc'
+          kwave_date, psd_mean, psd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+        print(ncfile)
+        print('kwave', kwave, kwav2, kwave_date, np.all(kwave == kwave_date))
+        print(len(kwave), len(kwav2), len(kwave_date))
+        psd_mean_list.append(psd_mean)
+        psd_memb_list.append(psd_memb)
+        PSM = np.mean(psd_mean, axis=0)
+        PSE = np.mean(psd_memb, axis=0)
+        RAT = PSM[1:]/PSE[1:]
+        i05 = np.where(RAT < 0.5)
+        imn = np.argmin(RAT)
+        if ( len(i05[0]) > 0 ):
+            print(date, len(kwave_date), len(i05[0]), len(RAT), len(PSM), len(PSE), len(PSM[1:]/PSE[1:]), len(PSM/PSE))
+            k05 = kwave_date[1:][i05]
+            KT05.append(k05[0])
+        else:
+            KT05.append(kwave_date[0])
+        KTMN.append(kwave_date[1:][imn])
+        if ( date == date_list[0] ):
+            kwave = kwave_date
+    psd_mean = sum(psd_mean_list) / len(psd_mean_list)
+    psd_memb = sum(psd_memb_list) / len(psd_memb_list)
+
+    K05 = []  
+    KMN = []  
+    for ibox, BOX in enumerate(BOXES):
+        lat = BOX[0][1]
+        icol = 0
+        for ii, LAT in enumerate(LATS):
+            if ( lat > LAT-1 ): icol=ii
+        LLGRID = GRIDS[ibox]
+        
+        PSM = psd_mean[ibox, :]
+        PSE = psd_memb[ibox, :]
+        RAT = PSM[1:]/PSE[1:]
+        i05 = np.where(RAT < 0.5)
+        imn = np.argmin(RAT)
+        if ( len(i05[0]) > 0 ):
+            k05 = kwave[1:][i05]
+            K05.append(k05[0])
+        else:
+            K05.append(kwave[0])
+        KMN.append(kwave[1:][imn])
+
+    #print(K05)
+    K05 = np.array(K05)
+    KMN = np.array(KMN)
+    PSM = np.mean(psd_mean, axis=0)
+    PSE = np.mean(psd_memb, axis=0)
+
+    fig, ax = plt.subplots()
+    ax.plot(date_list, KT05, linestyle='--', label='Ratio = 0.5')
+    ax.plot(date_list, KTMN, linestyle='-', label='Minimum Ratio') 
+    ax.legend()
+    ax.set_xlabel("dates")
+    ax.set_ylabel("$lambda$")
+    fig.tight_layout()
+    ofile=outdir+"tRATIO."+oar+'.glb'+".png"
+      
+    gig, bx = plt.subplots()
+    gir, br = plt.subplots()
+    bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean')
+    bx.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member')
+    br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
+    bx.legend()
+    bx.set_xlabel("$lambda$")
+    bx.set_ylabel("$P(k)$")
+    gig.tight_layout()
+    print(outdir, oar)
+    ofile=outdir+"PSW_loglog."+oar+'.glb'+".png"
+    gig.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gig)
+    br.legend()
+    br.set_xlabel("$lambda$")
+    br.set_ylabel("Ratio")
+    gir.tight_layout()
+    ofile=outdir+"PSW_ratio."+oar+'.glb'+".png"
+    gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+    #fft_giops.pcolormesh_with_box(lone, late, TSURF, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=BOXES, outfile='Boxes.png')
+
+    GDX = BOX_DNFO['GDX'] 
+    gdx = BOX_DNFO['gdx']
+    izero = np.where(K05 == 0 )
+    KFN = K05[:]
+    if ( len(izero[0]) > 0 ):
+        KFN[izero] = 1.0 / gdx
+    LENGTH = 1.0 / KFN
+    LENGTH[izero] = 0.0
+    print(LENGTH, np.max(LENGTH))
+    IBIG = np.where(LENGTH > GDX/2.0)
+    print('BIG', LENGTH[IBIG])
+    print('SCALE', GDX/5.0)
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=GDX/2.0, cmap='gist_stern_r', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png')
+
+    izero = np.where(KMN == 0 )
+    KFN = KMN[:]
+    if ( len(izero[0]) > 0 ):
+        KFN[izero] = 1.0 / gdx
+    LENGTH = 1.0 / KFN
+    LENGTH[izero] = 0.0
+    print(LENGTH, np.max(LENGTH))
+    IBIG = np.where(LENGTH > GDX/2.0)
+    print('BIG', LENGTH[IBIG])
+    print('SCALE', GDX/5.0)
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.4*GDX, cmap='gist_stern_r', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png')
+    return kwave, psd_mean, psd_memb, K05
+        
     

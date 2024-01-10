@@ -18,8 +18,9 @@ import matplotlib.colors as clr
 import find_value_at_point
 import check_date
 import write_nc_grid
+import soundspeed
 
-def write_profile(name, pt, depth, Tprofile, Sprofile, file):
+def write_profile(name, pt, depth, Tprofile, Sprofile, Cprofile, file):
     if ( Tprofile.ndim == 2 ):
         ne, nz = Tprofile.shape
     elif ( Tprofile.ndim == 1 ):
@@ -35,6 +36,9 @@ def write_profile(name, pt, depth, Tprofile, Sprofile, file):
         ofile.write(("{}\r\n").format('Salinity'))
         for iz in range(nz):
             ofile.write(("{:13.8g}"*(ne+1)+"\r\n") .format( depth[iz], *tuple(Sprofile[:,iz]) ))
+        ofile.write(("{}\r\n").format('Sound Speed'))
+        for iz in range(nz):
+            ofile.write(("{:13.8g}"*(ne+1)+"\r\n") .format( depth[iz], *tuple(Cprofile[:,iz]) ))
     return
         
 #Dates were:
@@ -94,9 +98,6 @@ def find_profile(years=[2020, 2021]):
         depthT =  read_dia.read_sam2_levels(file_e0)
         TIMES = read_dia.read_sam2_times(file_gdt)
 
-        lat_pt, lon_pt = PTS[0]
-        ipt, jpt = find_value_at_point.find_nearest_glcpt(lon_pt, lat_pt, lonn, latn)
-
         # NOT ACTUALLY DEPENDENT ON YEAR -- but you need the model LAT/LON
         IJPTS=[]
         for PT in PTS:
@@ -115,24 +116,33 @@ def find_profile(years=[2020, 2021]):
         Spro_gu = np.squeeze(SFLD_gu[0,:,IPTS, JPTS])
         Spro_gd = np.squeeze(SFLD_gd[it,:,IPTS,JPTS])
         Spro_e3 = np.squeeze(SFLD_e3[it,:,IPTS,JPTS])
+        Cpro_gu = soundspeed.sound_speed(depthT, Spro_gu, Tpro_gu, source='Coppens')
+        Cpro_gd = soundspeed.sound_speed(depthT, Spro_gd, Tpro_gd, source='Coppens')
+        Cpro_e3 = soundspeed.sound_speed(depthT, Spro_e3, Tpro_e3, source='Coppens')
         TPRO_en = []
         SPRO_en = []
+        CPRO_en = []
         for TFLD in ETFLD:
             TPRO_en.append( np.squeeze(TFLD[it,:,IPTS, JPTS]) )
         for SFLD in ESFLD:
             SPRO_en.append( np.squeeze(SFLD[it,:,IPTS, JPTS]) )
+        for iens, SFLD in enumerate(ESFLD):
+            TFLD = ETFLD[iens]
+            spro_tmp = np.squeeze(SFLD[it,:,IPTS, JPTS])
+            tpro_tmp = np.squeeze(TFLD[it,:,IPTS, JPTS])
+            cpro_en = soundspeed.sound_speed(depthT, spro_tmp, tpro_tmp, source='Coppens')
+            CPRO_en.append(cpro_en)
 
         TPRO_arr = np.transpose(np.array(TPRO_en), [1, 0, 2])
         SPRO_arr = np.transpose(np.array(SPRO_en), [1, 0, 2])
+        CPRO_arr = np.transpose(np.array(CPRO_en), [1, 0, 2])
         Tpro_mn = sum(TPRO_en) / len(TPRO_en)
         Spro_mn = sum(SPRO_en) / len(SPRO_en)
-
-        Tpri_gu = Tpro_gu.copy()
-        Tpri_gd = Tpro_gd.copy()
-        TPRI_en = TPRO_en.copy()
+        Cpro_mn = sum(CPRO_en) / len(CPRO_en)
 
         Tfig, Taxes = plt.subplots(3,3)
         Sfig, Saxes = plt.subplots(3,3)
+        Cfig, Caxes = plt.subplots(3,3)
         for ipl,tit in enumerate(TITLE):
             if ( tit == 'CN' ):  iax, iay = (1,1)
             if ( tit == 'NE' ):  iax, iay = (0,2)
@@ -140,25 +150,20 @@ def find_profile(years=[2020, 2021]):
             if ( tit == 'SW' ):  iax, iay = (2,0)
             if ( tit == 'NW' ):  iax, iay = (0,0)
             Taxes[iax,iay].plot(Tpro_gu[ipl,:], depthT, color='red', linewidth=2.0)
-            #Taxes[iax,iay].plot(Tpri_gu[ipl,:], depthT, color='magenta')
             Taxes[iax,iay].plot(Tpro_gd[ipl,:], depthT, color='blue')
-            #Taxes[iax,iay].plot(Tpri_gd[ipl,:], depthT, color='cyan')
             Taxes[iax,iay].plot(Tpro_mn[ipl,:], depthT, color='k')
             Saxes[iax,iay].plot(Spro_gu[ipl,:], depthT, color='red', linewidth=2.0)
-            #Saxes[iax,iay].plot(Spri_gu[ipl,:], depthT, color='magenta')
             Saxes[iax,iay].plot(Spro_gd[ipl,:], depthT, color='blue')
-            #Saxes[iax,iay].plot(Spri_gd[ipl,:], depthT, color='cyan')
             Saxes[iax,iay].plot(Spro_mn[ipl,:], depthT, color='k')
+            Caxes[iax,iay].plot(Cpro_gu[ipl,:], depthT, color='red', linewidth=2.0)
+            Caxes[iax,iay].plot(Cpro_gd[ipl,:], depthT, color='blue')
+            Caxes[iax,iay].plot(Cpro_mn[ipl,:], depthT, color='k')
             for ipro, Tpro in enumerate(TPRO_en):
-                #Tpro = TPRO_en[ipro]
-                #Tpri = TPRI_en[ipro]
                 Taxes[iax,iay].plot(Tpro[ipl,:], depthT, color='gray', linewidth=0.1) 
-                #Taxes[iax,iay].plot(Tpri[ipl,:], depthT, color='khaki', linewidth=0.1) 
             for ipro, Spro in enumerate(SPRO_en):
-                #Spro = TPRO_en[ipro]
-                #Spri = TPRI_en[ipro]
                 Saxes[iax,iay].plot(Spro[ipl,:], depthT, color='gray', linewidth=0.1) 
-                #Saxes[iax,iay].plot(Spri[ipl,:], depthT, color='khaki', linewidth=0.1) 
+            for ipro, Cpro in enumerate(CPRO_en):
+                Caxes[iax,iay].plot(Cpro[ipl,:], depthT, color='gray', linewidth=0.1) 
             Taxes[iax,iay].set_ylim([0, 200])                                                    
             Taxes[iax,iay].set_xlim([10,25])                                                    
             Taxes[iax,iay].invert_yaxis()   
@@ -167,6 +172,10 @@ def find_profile(years=[2020, 2021]):
             Saxes[iax,iay].set_xlim([30,40])                                                    
             Saxes[iax,iay].invert_yaxis()   
             Saxes[iax,iay].set_title(tit+' '+'Saliniity')                                      
+            Caxes[iax,iay].set_ylim([0, 200])                                                    
+            #Caxes[iax,iay].set_xlim([30,40])                                                    
+            Caxes[iax,iay].invert_yaxis()   
+            Caxes[iax,iay].set_title(tit+' '+'Sound Speed')                                      
 
         Tfig.delaxes(Taxes[0,1])
         Tfig.delaxes(Taxes[2,1])
@@ -176,35 +185,37 @@ def find_profile(years=[2020, 2021]):
         Sfig.delaxes(Saxes[2,1])
         Sfig.delaxes(Saxes[1,0])
         Sfig.delaxes(Saxes[1,2])
+        Cfig.delaxes(Caxes[0,1])
+        Cfig.delaxes(Caxes[2,1])
+        Cfig.delaxes(Caxes[1,0])
+        Cfig.delaxes(Caxes[1,2])
         syear=str(year)
         Tfig.savefig('MNDprofiles/Tprofiles_'+syear+'.png')
         Sfig.savefig('MNDprofiles/Sprofiles_'+syear+'.png')
+        Cfig.savefig('MNDprofiles/Cprofiles_'+syear+'.png')
         plt.close(Tfig)
         plt.close(Sfig)
+        plt.close(Cfig)
 
         for ipl,tit in enumerate(TITLE):
             Tfig, Taxes = plt.subplots()
             Sfig, Saxes = plt.subplots()
+            Cfig, Caxes = plt.subplots()
             Taxes.plot(Tpro_gu[ipl,:], depthT, color='red', linewidth=2.0)
-            #Taxes.plot(Tpri_gu[ipl,:], depthT, color='magenta')
             Taxes.plot(Tpro_gd[ipl,:], depthT, color='blue')
-            #Taxes.plot(Tpri_gd[ipl,:], depthT, color='cyan')
             Taxes.plot(Tpro_mn[ipl,:], depthT, color='k')
             Saxes.plot(Spro_gu[ipl,:], depthT, color='red', linewidth=2.0)
-            #Saxes.plot(Spri_gu[ipl,:], depthT, color='magenta')
             Saxes.plot(Spro_gd[ipl,:], depthT, color='blue')
-            #Saxes.plot(Spri_gd[ipl,:], depthT, color='cyan')
             Saxes.plot(Spro_mn[ipl,:], depthT, color='k')
+            Caxes.plot(Cpro_gu[ipl,:], depthT, color='red', linewidth=2.0)
+            Caxes.plot(Cpro_gd[ipl,:], depthT, color='blue')
+            Caxes.plot(Cpro_mn[ipl,:], depthT, color='k')
             for ipro, Tpro in enumerate(TPRO_en):
-            #Tpro = TPRO_en[ipro]
-                #Tpri = TPRI_en[ipro]
                 Taxes.plot(Tpro[ipl,:], depthT, color='gray', linewidth=0.2) 
-                #Taxes.plot(Tpri[ipl,:], depthT, color='khaki', linewidth=0.2)
             for ipro, Spro in enumerate(SPRO_en):
-                #Spro = SPRO_en[ipro]
-                #Spri = SPRI_en[ipro]
                 Saxes.plot(Spro[ipl,:], depthT, color='gray', linewidth=0.2) 
-                #Saxes.plot(Spri[ipl,:], depthT, color='khaki', linewidth=0.2)
+            for ipro, Cpro in enumerate(CPRO_en):
+                Caxes.plot(Cpro[ipl,:], depthT, color='gray', linewidth=0.2) 
             Taxes.set_ylim([0, 200])                                                    
             Taxes.set_xlim([10,25])                                                    
             Taxes.invert_yaxis()   
@@ -213,20 +224,26 @@ def find_profile(years=[2020, 2021]):
             Saxes.set_xlim([30,40])                                                    
             Saxes.invert_yaxis()   
             Saxes.set_title(tit+' '+'Saliniity')                                      
+            Caxes.set_ylim([0, 200])                                                    
+            #Caxes.set_xlim([30,40])                                                    
+            Caxes.invert_yaxis()   
+            Caxes.set_title(tit+' '+'Sound Speed')                                      
             syear=str(year)
             Tfig.savefig('MNDprofiles/Tprofiles_'+tit+'_'+syear+'.png')
             Sfig.savefig('MNDprofiles/Sprofiles_'+tit+'_'+syear+'.png')
+            Cfig.savefig('MNDprofiles/Cprofiles_'+tit+'_'+syear+'.png')
             plt.close(Tfig)
             plt.close(Sfig)
+            plt.close(Cfig)
 
         ncfile='MNDprofiles/profile_'+syear+'.nc'  
-        write_nc_grid.write_profiles([Tpro_gu, Spro_gu, Tpro_gd, Spro_gd, TPRO_arr, SPRO_arr], LONPTS, LATPTS, depthT, ['T_gu', 'S_gu', 'T_gd', 'S_gd', 'T_ens', 'S_ens'], ncfile)
+        write_nc_grid.write_profiles([Tpro_gu, Spro_gu, Cpro_gu, Tpro_gd, Spro_gd, Cpro_gd, TPRO_arr, SPRO_arr, CPRO_arr], LONPTS, LATPTS, depthT, ['T_gu', 'S_gu', 'C_gu', 'T_gd', 'S_gd', 'C_gd', 'T_ens', 'S_ens','C_ens'], ncfile)
 
         for ipt, PT in enumerate(PTS):
             file='MNDprofiles/enGIOPS.profile_'+TITLE[ipt]+'_'+syear+'.txt'
-            write_profile(LITLE[ipt], PT, depthT, TPRO_arr[ipt,:,:], SPRO_arr[ipt,:,:], file)
+            write_profile(LITLE[ipt], PT, depthT, TPRO_arr[ipt,:,:], SPRO_arr[ipt,:,:], CPRO_arr[ipt,:,:], file)
             file='MNDprofiles/GIOPS_gu.profile_'+TITLE[ipt]+'_'+syear+'.txt'
-            write_profile(LITLE[ipt], PT, depthT, Tpro_gu[ipt,:], Spro_gu[ipt,:], file)
+            write_profile(LITLE[ipt], PT, depthT, Tpro_gu[ipt,:], Spro_gu[ipt,:], Cpro_gu[ipt,:], file)
             file='MNDprofiles/GIOPS_gd.profile_'+TITLE[ipt]+'_'+syear+'.txt'
-            write_profile(LITLE[ipt], PT, depthT, Tpro_gd[ipt,:], Spro_gd[ipt,:], file)
+            write_profile(LITLE[ipt], PT, depthT, Tpro_gd[ipt,:], Spro_gd[ipt,:], Cpro_gd[ipt,:], file)
         

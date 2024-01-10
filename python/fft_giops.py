@@ -21,6 +21,7 @@ mdir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
 
 import scipy.interpolate
 import scipy.stats
+import scipy.signal
 import matplotlib.pyplot as plt
 
 addpath='/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/CIOPS/analysis/Ensemble_CIOPS_analysis/python'
@@ -37,8 +38,8 @@ def seconds_since_epoch( date, epoch=epoch):
     seconds = ( date - epoch ).total_seconds()
     return seconds
 
-dmap='gist_stern_r'
 dmap='gist_stern'
+dmap='gist_stern_r'
 
 mdir3='/fs/site3/eccc/mrd/rpnenv/dpe000/maestro_hub/'
 mdir4='/fs/site4/eccc/mrd/rpnenv/dpe000/maestro_hub/'
@@ -266,24 +267,79 @@ def interpolate_to_box_with_mask(FLD, LL_mod, LL_box, method='nearest', missing=
     else:
         FLD_box =  scipy.interpolate.griddata( (lon_sea, lat_sea), FLD_SEA, (lon_box, lat_box), method=method, fill_value=np.NaN)
     return FLD_box
+
+def interpolate_to_boxes(FLD, LL_mod, LL_BOXES, method='nearest', missing=-999):
+    lon_mod, lat_mod = LL_mod
+    #
+    ISEA = np.where(FLD.mask == False)
+    #print(ISEA)
+    FLD_SEA = FLD[ISEA]
+    lon_sea = lon_mod[ISEA]
+    lat_sea = lat_mod[ISEA]
+
+    nb = len(LL_BOXES)
+    nx, ny = LL_BOXES[0][0].shape
+    for ibox, LL_box in enumerate(LL_BOXES):
+        lon_box, lat_box = LL_box
+        if ( ibox == 0 ): 
+            lon_allbox = lon_box.flatten()
+            lat_allbox = lat_box.flatten()
+        else:
+            lon_allbox = np.concatenate([lon_allbox, lon_box.flatten()])
+            lat_allbox = np.concatenate([lat_allbox, lat_box.flatten()])
     
+    if ( method == '2sweep' ):
+        FLD_allbox = scipy.interpolate.griddata( (lon_sea, lat_sea), FLD_SEA, (lon_allbox, lat_allbox), method='linear', fill_value=missing)
+        FLD_allrep = scipy.interpolate.griddata( (lon_sea, lat_sea), FLD_SEA, (lon_allbox, lat_allbox), method='nearest' )
+        replace = np.where(FLD_allbox == missing )
+        FLD_allbox[replace] = FLD_allrep[replace]
+    else:
+        FLD_allbox =  scipy.interpolate.griddata( (lon_sea, lat_sea), FLD_SEA, (lon_allbox, lat_allbox), method=method, fill_value=np.NaN)
+    
+    FLD_allbox = np.reshape(FLD_allbox, (nb, nx, ny) )
+    FLD_BOXES = []
+    for ib in range(nb):
+        FLD_BOXES.append(FLD_allbox[ib, :, :])
+    return FLD_BOXES
+
+def interpolate_to_boxes_slow(FLD, LL_mod, LL_BOXES, method='nearest', missing=-999):
+    FLD_BOXES = []
+    for LL_box in LL_BOXES:
+        FLD_BOX = interpolate_to_box_with_mask(FLD, LL_mod, LL_box, method=method, missing=missing)
+        FLD_BOXES.append(FLD_BOX)
+    return FLD_BOXES
+        
 def get_fft_ps(GRID):
     FFT = np.fft.fft2(GRID)
     PSD = get_psd(FFT)
     return PSD, FFT
+    
+def get_welch_psd(GRID):
+    nx, ny = GRID.shape
+    kw, psd_x = scipy.signal.welch(GRID, 1, axis=1, window='hann')
+    kw, psd_y = scipy.signal.welch(GRID, 1, axis=0, window='hann')
+    psd_x = np.mean(psd_x, axis=0)
+    psd_y = np.mean(psd_y, axis=1)
+    psd = 0.5*(psd_x+psd_y)
+    return kw, psd
 
 def get_psd(FFT):
     PSD = np.abs( FFT * np.conj(FFT) )
     return PSD
 
 def find_wavenumber_norm(N, grid_step):
-    wavenumber = 2 * np.pi * np.fft.fftfreq(N, grid_step)
+    wavenumber = np.fft.fftfreq(N, grid_step)
     K2D = np.meshgrid(wavenumber, wavenumber)
     knorm = np.sqrt(K2D[0]**2 +K2D[1]**2)
-    return knorm
+    return knorm, wavenumber
+
+
+def find_wavenumber(N, grid_step):
+    wavenumber = np.fft.fftfreq(N, grid_step)
+    return wavenumber
 
 def setup_Kbins(N, grid_step):
-    kbins = 2 * np.pi * np.arange(0.5, N/2., 1.)/(grid_step*N/np.sqrt(2))
+    kbins = np.arange(0.5, N/2., 1.)/(grid_step*N/np.sqrt(2))
     kvals = 0.5 * (kbins[1:] + kbins[:-1])
     return kbins, kvals
 

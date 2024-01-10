@@ -1,6 +1,16 @@
 import datetime
+import pytz
 
+def check_date_list(datelist, outtype=str, dtlen=8):
+    if ( not isinstance(datelist, list) ):
+        print('datelist must be list')
+        dnewlist = datelist
+    else:
+        dnewlist = [ check_date(date, outtype=outtype, dtlen=dtlen) for date in datelist ]
+    return dnewlist
+    
 def check_date(date, outtype=str, dtlen=8):
+    datestr=None
     if ( (outtype==str) or (outtype==int) ):
       if ( isinstance(date, datetime.datetime) or isinstance(date, datetime.date) ):
         if ( dtlen == 8 ):  
@@ -32,4 +42,12 @@ def check_date(date, outtype=str, dtlen=8):
         datestr=datetime.datetime.strptime(date, '%Y%m%d%H%M%S')  
       if ( isinstance(date, datetime.datetime) ): datestr=date
       if ( isinstance(date, datetime.date) ): datestr=datetime.datetime(*date.timetuple()[:4])
+    if ( isinstance(datestr, type(None) ) ): print('No valid conversion offered', date)
     return datestr
+
+def add_utc(date):
+    if ( date.tzinfo == None ):
+        date=pytz.utc.localize(date)
+    else:
+        pass # return date with tzinfo as already in the date
+    return date

@@ -1,7 +1,7 @@
 
 import sys
 import subprocess
-this_dir='/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python_drew'
+this_dir='/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python'
 sys.path.insert(0, this_dir)
 import matplotlib as mpl
 mpl.use('Agg')
@@ -11,6 +11,7 @@ import pytz
 import os.path
 import netCDF4
 import scipy.interpolate
+import glob
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -95,13 +96,13 @@ def read_sam2_times(file=default_file, fld='time_counter', T_ref=datetime.dateti
     Timestamp = []
     for tsec in Tsec:
         Timestamp.append(T_ref + datetime.timedelta(seconds=int(tsec)))
-    
+    dataset.close()
     return Timestamp
                
 def read_sam2_levels(file=default_file, fld='deptht'):
     dataset = netCDF4.Dataset(file)
     depth = dataset.variables[fld][:]
-    
+    dataset.close()
     return depth
                
 def read_sam2_grid(file, fld='thetao'):
@@ -213,15 +214,17 @@ date=datetime.datetime(2020, 11, 4)
 def check_ensembles(ensembles):
   if ( isinstance(ensembles, list) ):
     if ( len(ensembles) == 0 ): ensembles=range(nensembles)
-    if ( len(ensembles) == 1 ): ensembles=np.arange(ensembles[0])
   if ( isinstance(ensembles, str) ):
-    try:
-       ensembles = ENSEMBLES[int(ensembles)]
-    except:
+    if ( ensembles == 'd' or ensembles == 'D' ):
+        pass
+    else:
        try:
-         ensembles = np.arange(int(ensembles))
+          ensembles = ENSEMBLES[int(ensembles)]
        except:
-         ensembles = []
+          try:
+             ensembles = np.arange(int(ensembles))
+          except:
+             ensembles = []
   if ( isinstance(ensembles, int) ):
     ensembles=np.arange(ensembles)
   
@@ -230,31 +233,117 @@ def check_ensembles(ensembles):
 def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
 
     ensembles = check_ensembles(ensembles)
-    if ( len(ensembles) == 0 ): ensembles=range(nensembles)
+    ensstr=str(0)
+    cyrs=[]
     print('ENSEMBLES = ', ensembles) 
+    if ( ensembles == 'd' or ensembles == 'D' ):
+      ensembles=[0]
+      ensstr=''
+    if ( ensembles == 'c' or ensembles == 'C' ):
+      ensembles=list(range(5))
+      cyrs=list(range(2015, 2023, 1))
+      ensstr=''
+    if ( len(ensembles) == 0 ): ensembles=range(nensembles)
     datestr=date.strftime("%Y%m%d%H")
     datestd=datestr[:8]
 
     if ( fld == 'T' ): var='thetao'
+    if ( fld == 'Tsppt'): var='sppt_tem'
     if ( fld == 'S' ): var='so'
+    if ( fld == 'Ssppt'): var='sppt_sal'
     if ( fld == 'U' ): var='uo'
     if ( fld == 'V' ): var='vo'
     if ( fld == 'H' ): var='zos'
     if ( fld == 'SST'): var='tos'
+    if ( fld == 'SSU'): var='uos'
+    if ( fld == 'SSV'): var='vos'
+    if ( fld == 'U15'): var='uos'
+    if ( fld == 'V15'): var='vos'
+    if ( fld == 'MLD'): var='mldr10_1'
+    if ( fld == 'TAUX'): var='TAUX'
+    if ( fld == 'TAUY'): var='TAUY'
 	
     grid='grid_'+fld
     if ( fld == 'S' ): grid='grid_'+'T'
+    if ( fld == 'Tsppt'): grid='grid_'+'T'
+    if ( fld == 'Ssppt'): grid='grid_'+'T'
     if ( fld == 'H' ): grid='grid_T_2D'
     if ( fld == 'SST'): grid='grid_T_2D'
+    if ( fld == 'SSU'): grid='grid_U_2D'
+    if ( fld == 'SSV'): grid='grid_V_2D'
+    if ( fld == 'U15'): grid='grid_U_2D'
+    if ( fld == 'V15'): grid='grid_V_2D'
+    if ( fld == 'MLD'): grid='grid_T_2D'
+    if ( fld == 'TAUX'): grid='gridU-RUN-crs'
+    if ( fld == 'TAUY'): grid='gridV-RUN-crs'
+    
     FLD_ENSEMBLE = []
     for ens in ensembles:
-        ensstr=str(ens)
+        if ( ensstr != '' ): ensstr=str(ens)
+        if ( len(cyrs) > 0 ):
+          datestr=date.strftime("%m%d%H")
+          yearstr=string(cyrs[ens])
+          datestr=yearstr+datestr
+          datestd=datestr[:8]
+
+        print( ens_pre, ensstr, datestd)        
         file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc'
+        if ( fld == 'TAUX' or fld == 'TAUY' ):
+            file=glob.glob(datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+'*'+'.nc')[0]
         print(file)
-        lon, lat, FLD = read_sam2_grid(file, fld=var)
+        if ( fld == 'U15' ):
+            lon, lat, FLD10 = read_sam2_grid(file, fld='u10')
+            lon, lat, FLD20 = read_sam2_grid(file, fld='u20')
+            FLD = ( 2*FLD20 - FLD10 )   # SHORTHAND for (D20*FLD20 - D10*FLD10 ) / ( D20-D10 )
+        elif ( fld == 'V15' ):   
+            lon, lat, FLD10 = read_sam2_grid(file, fld='v10')
+            lon, lat, FLD20 = read_sam2_grid(file, fld='v20')
+            FLD = ( 2*FLD20 - FLD10 )   # SHORTHAND for (D20*FLD20 - D10*FLD10 ) / ( D20-D10 )
+        else:
+            lon, lat, FLD = read_sam2_grid(file, fld=var)
+            #print(FLD.shape)
         FLD_ENSEMBLE.append(FLD)
     return lon, lat, FLD_ENSEMBLE
- 
+
+def read_ensemble_plus_depth(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
+    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles)
+    datestr=date.strftime("%Y%m%d%H")
+    datestd=datestr[:8]
+    grid='grid_'+fld
+    if ( fld == 'S' ): grid='grid_'+'T'
+    depvar='deptht'
+    if ( fld == 'U' ): depvar='depthu'
+    if ( fld == 'V' ): depvar='depthv'
+    
+    fil0=datadir+'/'+ens_pre+'0'+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    fila=datadir+'/'+ens_pre+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    try:
+        depthT =  read_sam2_levels(fil0, fld=depvar)
+    except:
+        depthT = read_sam2_levels(fila, fld=depvar)
+    return depthT, lon, lat, FLD_ENSEMBLE
+       
+def read_ensemble_plus_depthandtime(datadir, ens_pre, date, fld='T', time_fld='time_instant', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
+    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles)
+    datestr=date.strftime("%Y%m%d%H")
+    datestd=datestr[:8]
+    grid='grid_'+fld
+    if ( fld == 'S' ): grid='grid_'+'T'
+    depvar='deptht'
+    if ( fld == 'U' ): depvar='depthu'
+    if ( fld == 'V' ): depvar='depthv'
+    
+    fil0=datadir+'/'+ens_pre+'0'+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    fila=datadir+'/'+ens_pre+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    try:
+        depthT =  read_sam2_levels(fil0, fld=depvar)
+        times = read_sam2_times(file=fil0, fld=time_fld, T_ref=datetime.datetime(1950,1,1, 0,0,0,0, pytz.UTC))
+    except:
+        depthT = read_sam2_levels(fila, fld=depvar)
+        times = read_sam2_times(file=fila, fld=time_fld, T_ref=datetime.datetime(1950,1,1, 0,0,0,0, pytz.UTC))
+    
+    return times, depthT, lon, lat, FLD_ENSEMBLE
+    
 def ensemble_mean(FLD_ENSEMBLE):
     FLD_MEAN = sum(FLD_ENSEMBLE) / len(FLD_ENSEMBLE)
     return FLD_MEAN

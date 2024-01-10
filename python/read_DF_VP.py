@@ -23,11 +23,11 @@ import nearest
 import linestyles
 
 import multiprocessing
-import multiprocessing.pool
+#import multiprocessing.pool
 import itertools
 from functools import partial
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import as_completed
+#from concurrent.futures import ThreadPoolExecutor
+#from concurrent.futures import as_completed
 
 sys.path.insert(0, '/home/dpe000/python/properscoring-0.1')
 import properscoring as ps
@@ -40,6 +40,11 @@ m5dir='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives'
 m6dir='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
 
 intconvfac=10000.0
+
+cmap_anom = 'seismic'
+cmap_zero = 'RdYlBu_r'
+cmap_posd = 'gist_stern_r'
+
 
 def get_mdir(n, user='dpe000', rpn='rpnenv', grp='mrd'):
     site='site'+str(n)
@@ -152,8 +157,9 @@ def ensemble_average_VP(df_EnVP, count=21):
     
     df_aTP = df_TP.mean().reset_index()
     df_aSP = df_SP.mean().reset_index()
-    df_sTP = df_TP.std().reset_index()
-    df_sSP = df_SP.std().reset_index()
+    df_sTP = df_TP.var(ddof=0).reset_index()
+    df_sSP = df_SP.var(ddof=0).reset_index()
+    
 
     df_aTP[['ensvarT','ensvvoT','ensvvfT']] = df_sTP[['misfitT', 'voT', 'vfT']].values   
     df_aSP[['ensvarS','ensvvoS','ensvvfS']] = df_sSP[['misfitS', 'voS', 'vfS']].values   
@@ -224,6 +230,7 @@ def calc_crps(ens, obs):
     if ( isinstance(ens, np.ndarray) ):
         ens=ens.flatten()
     #print('shape', ens.shape, obs)
+    #print('type', type(ens), type(obs))
     crps = ps.crps_ensemble(obs, ens)
     return(crps)
 
@@ -284,9 +291,6 @@ def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=
 
     return gl_series, rgs_series, bin_series
     
-def calc_grid_errors(df_EaVP, grid=2.0):
-    return gr_EaVP
-
 AREAS = { 
           'NINO34' : [ -170, -120,  -5,   5 ],
           'NINO12' : [  -90,  -80,  -10,   0 ],
@@ -500,7 +504,7 @@ def addto_vertical_array(idate, grgs_binv, grgs_series, depth, TTvars, SSvars):
                     grgs_binv[iseries][1][idate, ik, ikey] = dfLS[key].values
     return grgs_binv        
         
-def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5),  mp_read=True):
+def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5),  mp_date=False, mp_read=True):
     gl_series, rgs_series, bin_series = init_dataframes()
     depth = np.loadtxt('/home/kch001/scripts/SAM2_diagnostics/GIOPS/constants/GIOPS_depths')
     TTvars = Tvars.copy()
@@ -513,13 +517,23 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
     nT=len(TTvars)
     nS=len(SSvars)
     
-    Tbinv = np.NaN * np.ones((nt, nd, nT))
-    Sbinv = np.NaN * np.ones((nt, nd, nT))
-    
     grgs_binv = init_vertical_array(nt, nd, nT, nS)
-    
+    ADD_RESULTS=[]
+    if (mp_date):
+        nproc=min([num_cpus, len(dates)])
+        process_pool = multiprocessing.Pool(nproc)
+        izip = list(zip(dates, itertools.repeat(expt)))
+        print(izip)
+        RTN_LIST = process_pool.starmap_async(partial(calc_errors_date, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=False), izip)
+        process_pool.close()
+        process_pool.join()
+        ADD_RESULTS = RTN_LIST.get()
+    else:     
+       for idate,date in enumerate(dates):
+           ADD_RESULTS.append(calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read))
     for idate, date in enumerate(dates):
-       add_gl_series, add_rgs_series, add_bin_series = calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read)   
+       add_gl_series, add_rgs_series, add_bin_series = ADD_RESULTS[idate]
+       #add_gl_series, add_rgs_series, add_bin_series = calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read)   
        gl_series, rgs_series, bin_series = addto_sums( ( gl_series, rgs_series, bin_series ), (add_gl_series, add_rgs_series, add_bin_series) )
        day_gl_series, day_rgs_series = apply_averaging(add_gl_series, add_rgs_series)
        grgs_binv = addto_vertical_array(idate, grgs_binv, [day_gl_series]+day_rgs_series, depth, TTvars, SSvars)
@@ -681,21 +695,23 @@ def plot_profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
 
     return
 
-def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', maxdepths=[200, 500, 2000]):
+def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', maxdepths=[200, 500, 2000], noensstat=False):
     for ifld, fld in enumerate(['T','S']):
-        plot_profile_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths)
+        plot_profile_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths, noensstat=noensstat)
     return
     
-def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex'):
+def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False):
     nexpts = len(df_profile_list)
     title = fld+'-profile'
     dvar = 'depth_'+fld
     if ( ( not isinstance(maxdepths, list) ) and ( not isinstance(maxdepths, tuple) ) ): maxdepths=[maxdepths]
     
     figL, axeL = plt.subplots()
+    axeL.axvline(x=0, color='k', linestyle='-')
     figD=[]; axeD=[]
     for maxdepth in maxdepths:
         fig, axe = plt.subplots()
+        axe.axvline(x=0, color='k', linestyle='-')
         figD.append(fig); axeD.append(axe)
 
     colors = ['r', 'b', 'g', 'c', 'm']    
@@ -706,7 +722,13 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
     expt_elementsD = []
     lines = [ 'mean', 'rmse', 'sprd', 'crps', 'stde' ]
     linel = [ '--', '-', ':', '-.', linestyle_tup['-..-..'] ]
-    for iline, lina in enumerate(lines):
+    these_lines = lines.copy()
+    if ( noensstat ):
+        these_lines = [ 'mean', 'rmse', 'stde' ]
+    
+    nlines = len(these_lines)
+    for lina in these_lines:
+        iline = lines.index(lina)
         linestyle = linel[iline]
         line_elementsL.append( Line2D([0], [0], color='k', ls=linestyle, label=lina) )
         line_elementsd = []
@@ -714,6 +736,7 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
            line_elementsd.append( Line2D([0], [0], color='k', ls=linestyle, label=lina) )
         line_elementsD.append(line_elementsd)
 
+    nlinee = []
     for ip, df_profile in enumerate(df_profile_list):
         label = labels[ip]
         color = colors[ip%5]
@@ -721,15 +744,26 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
         merr = df_profile['misfit'+fld].values
         rmse = df_profile['sqrerr'+fld].values
         crps = df_profile['crps'+fld].values
+        evar = df_profile['ensvar'+fld].values
         estd = df_profile['ensvar'+fld].values
         stde = np.sqrt(rmse - np.square(merr) ) 
 
         rmse = np.sqrt(rmse)
         estd = np.sqrt(estd)
-        errors = [ merr, rmse, estd, crps, stde]     
-        for iline, lina in enumerate(lines):
+        errors = [ merr, rmse, estd, crps, stde] 
+        these_lines = lines
+        nlinee.append(len(these_lines))
+        print('Max EVAR', np.max(evar))
+        these_lines = lines.copy()
+        if ( np.all(evar==0) ):
+            these_lines = [ 'mean', 'rmse', 'stde' ] 
+            print('evar == 0', label, outpre) 
+        if ( noensstat ):
+            these_lines = [ 'mean', 'rmse', 'stde' ]
+        for lina in these_lines:
+            iline=lines.index(lina)
             linestyle = linel[iline]
-            if ( iline == 0 ):
+            if ( iline == 1 ):
                 ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, color=color, label=label)
                 expt_elementsL.append(ll)
                 expt_elementsd=[]
@@ -749,12 +783,13 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
     axeL.add_artist(line_legendL)
     axeL.invert_yaxis()
     figL.savefig(outpre+fld+'profile.png')
+    print(outpre+fld+'profile.png')
     plt.close(figL)
 
     for iplot, maxdepth in enumerate(maxdepths):
         mstr=str(maxdepth)
         expt_elements = [ expt_elementsD[iexpt][iplot] for iexpt in range(nexpts) ]
-        line_elements = [ line_elementsD[iline][iplot] for iline in range(len(lines)) ]
+        line_elements = [ line_elementsD[iline][iplot] for iline in range(nlines) ]
         if ( maxdepth > 200 ):
             locexpt='center right'
             locline='lower right'
@@ -769,14 +804,11 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
         axeD[iplot].add_artist(line_legendD)
         axeD[iplot].set_ylim([0, maxdepth])
         axeD[iplot].invert_yaxis()
+        print(outpre+fld+'profile_'+mstr+'m.png')
         figD[iplot].savefig(outpre+fld+'profile_'+mstr+'m.png')
         plt.close(figD[iplot])
 
     return
-
-cmap_anom = 'seismic'
-cmap_zero = 'RdYlBu_r'
-cmap_posd = 'gist_stern_r'
 
 def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
    if ( isinstance(binF, list) or isinstance(binF, tuple) ): 
@@ -826,6 +858,7 @@ def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
            title=titpre+' '+varn
        else:
            title=varn
+       print(varn, 'Max/Min', np.max(fld), np.min(fld)) 
        cplot.bin_pcolormesh(lon_bin, lat_bin, fld, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
    return
 
@@ -885,7 +918,7 @@ def plot_diff_field(bin1, bin2, drop=['ensvvo', 'ensvvf', 'vf', 'vo'], titpre=''
        cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
    return
 
-def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True):
+def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False):
     deterministic = False
     print(ens_passed)
     if ( ( isinstance(ens_passed, list) ) or ( isinstance(ens_passed, np.ndarray) ) ): ens = ens_passed
@@ -897,10 +930,10 @@ def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True):
          else:
              ens=list(range(ens_passed))
                 
-    gl_series, rgs_series, bin_series, grgs_varray = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read)
+    gl_series, rgs_series, bin_series, grgs_varray = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read, mp_date=mp_date)
     return  expt, gl_series, rgs_series, bin_series, grgs_varray
      
-def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=True):
+def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=True, mp_date=False):
 
     print( "MP SETTINGS", mp_expt, mp_read )
     if ( mp_expt and mp_read ):
@@ -921,7 +954,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         for iexpt, expt in enumerate(expts):
             ens_passed = enss[iexpt]
             dir_passed = ddirs[iexpt]
-            expt_rtn, gl_series, rgs_series, bin_series, grgs_varray = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read)
+            expt_rtn, gl_series, rgs_series, bin_series, grgs_varray = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date)
             gl_list.append(gl_series)
             rgs_list.append(rgs_series)
             bin_list.append(bin_series)
@@ -932,7 +965,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         process_pool = multiprocessing.Pool(nproc)
         izip = list(zip(itertools.repeat(dates), expts, enss, ddirs))
         print(izip)
-        RTN_LIST = process_pool.starmap_async(partial(process_expt, mp_read=mp_read), izip)
+        RTN_LIST = process_pool.starmap_async(partial(process_expt, mp_read=False, mp_date=False), izip)
         process_pool.close()
         process_pool.join()
         FIN_LIST = RTN_LIST.get()
@@ -957,7 +990,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         print("SORTED ", ( list(expt_list) == list(expts) ), expt_list, expts, sort_list, expt_copy )
     return gl_list, rgs_list, bin_list, grgs_list
 
-def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=True):
+def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, outdirpre='', noensstat=False):
     if ( mp_expt and mp_read ):
         print('WARNING:  Multitasking within multitasking not working')
     if ( len(date_range) > 3 ):
@@ -973,30 +1006,30 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     if ( labels is None ): labels=expts
     if ( outdir is None ): outdir=expts
     for odir in outdir:
-        subprocess.call(['mkdir', odir])
+        subprocess.call(['mkdir', outdirpre+odir])
     for odir in outdir[1:]:
         pdir=outdir[0]+'_'+odir
-        subprocess.call(['mkdir', pdir])
+        subprocess.call(['mkdir', outdirpre+pdir])
     
     datestr0 = check_date.check_date(dates[0],  dtlen=8)
     datestr1 = check_date.check_date(dates[-1], dtlen=8)
     datestrr = datestr0 + '_' + datestr1
-    gl_list, rgs_list, bin_list, grgs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read)
+    gl_list, rgs_list, bin_list, grgs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date)
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
-    outpreoutg=outdir[0] +'/'+'Profiles_Global_'
-    plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg)
+    outpreoutg=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+'Global'+'_'
+    plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat)
     for iarea, area in enumerate(PAREAS.keys()):
         reg_list = [ rgs_series[iarea] for rgs_series in rgs_list ]
         title=area
-        outpreouta=outdir[0] +'/'+'Profiles_'+datestrr+'_'+area+'_'
-        plot_profiles_multi(reg_list, labels, title=title, outpre=outpreouta)
+        outpreouta=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+area+'_'
+        plot_profiles_multi(reg_list, labels, title=title, outpre=outpreouta, noensstat=noensstat)
     print("FINISHED PROFILE PLOTS")
 
     for ilevel, level in enumerate(Levels):
         levstr=str(level[0])+'_'+str(level[1])
         for iexpt, expt in enumerate(expts):
             binL = bin_list[iexpt][ilevel]
-            outpreoutb=outdir[iexpt]+'/'+'Levels_'+datestrr+'_'+levstr+'_'
+            outpreoutb=outdirpre+outdir[iexpt]+'/'+'Levels_'+datestrr+'_'+levstr+'_'
             titpre=labels[iexpt]+' '+datestrr+' '+levstr
             print('TITLE', titpre, len(titpre))
             plot_df_field(binL, titpre=titpre, outpre=outpreoutb)
@@ -1004,7 +1037,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             if ( iexpt == 0 ): 
                 bin0=binL
             else:
-                odir=outdir[0]+'_'+outdir[iexpt]
+                odir=outdirpre+outdir[0]+'_'+outdir[iexpt]
                 titpre=labels[0]+'-'+labels[iexpt]+' '+datestrr+' '+levstr
                 print('TITLE', titpre, len(titpre))
                 outpreoutb=odir+'/'+'Levels_'+datestrr+'_'+levstr+'_'
@@ -1034,13 +1067,13 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             for iTS, binv in enumerate([dfT_binv, dfS_binv]):
                 bin0 = [dfT_bin0, dfS_bin0][iTS]
                 varslist = [Tvarslist, Svarslist][iTS]
-                plot_hov_vars(dates, binv, bin0, iTS, labels[iexpt], labels[0], outdir[iexpt], outdir[0], areanam, plotdiff=plotdiff)
+                plot_hov_vars(dates, binv, bin0, iTS, labels[iexpt], labels[0], outdir[iexpt], outdir[0], areanam, plotdiff=plotdiff, outdirpre=outdirpre)
     print("FINISHED HOVMULLER PLOTS")
             
 
     return
 
-def plot_hov_vars(dates, binv, bin0, ibin, lab, lab0, dir, dir0, areanam, plotdiff=True):
+def plot_hov_vars(dates, binv, bin0, ibin, lab, lab0, dir, dir0, areanam, plotdiff=True, outdirpre=''):
 
     depth = get_depth()
 
@@ -1071,8 +1104,8 @@ def plot_hov_vars(dates, binv, bin0, ibin, lab, lab0, dir, dir0, areanam, plotdi
         iindex=INDEXES[ii]
         varnam=INVARIS[ii]
         dird=dir0+'_'+dir
-        outfile=dir+'/'+'Hovmuller_'+datestrr+'_'+areanam+'_'+varnam+'.png'
-        outfild=dird+'/'+'Hovmuller'+datestrr+'_'+areanam+'_'+varnam+'.png'
+        outfile=outdirpre+dir+'/'+'Hovmuller_'+datestrr+'_'+areanam+'_'+varnam+'.png'
+        outfild=outdirpre+dird+'/'+'Hovmuller_'+datestrr+'_'+areanam+'_'+varnam+'.png'
         pltarray = np.squeeze(binv[:, :, iindex])
         pldarray = np.squeeze(bin0[: ,: ,iindex]) - pltarray
         posd=True
@@ -1082,19 +1115,24 @@ def plot_hov_vars(dates, binv, bin0, ibin, lab, lab0, dir, dir0, areanam, plotdi
             cmap_here = cmap_zero
         CLEV = find_good_contour_levels(pltarray, posd=posd)
         ALEV = find_good_contour_levels(pldarray)
+        if ( np.all(CLEV==0) ): CLEV=None
+        if ( np.all(ALEV==0) ): ALEV=None
+        print('CLEV/ALEV', CLEV, ALEV)
         for ymax in [500, 2000]: 
             ystr=''
             if ( ymax != 2000 ): ystr=str(int(ymax))
-            outfile=dir+'/'+'Hovmuller'+ystr+'_'+datestrr+'_'+areanam+'_'+varnam+'.png'
-            outfild=dird+'/'+'Hovmuller'+ystr+'_'+datestrr+'_'+areanam+'_'+varnam+'.png'
+            outfile=outdirpre+dir+'/'+'Hovmuller'+ystr+'_'+datestrr+'_'+areanam+'_'+varnam+'.png'
+            outfild=outdirpre+dird+'/'+'Hovmuller'+ystr+'_'+datestrr+'_'+areanam+'_'+varnam+'.png'
             posd=True
             cmap_here = cmap_posd
             if ( varnam[0:6] == 'misfit' ): 
                 posd=False
                 cmap_here = cmap_zero
-            plot_hovmuller(dates, depth, pltarray, outfile=outfile, ymax=ymax, cmap=cmap_here, levels=CLEV)
+            if not np.all(np.isnan(pltarray)):
+              plot_hovmuller(dates, depth, pltarray, outfile=outfile, ymax=ymax, cmap=cmap_here, levels=CLEV)
             if ( plotdiff ):
-                 plot_hovmuller(dates, depth, pldarray, levels=ALEV, outfile=outfild, ymax=ymax, cmap=cmap_zero)
+                if not np.all(np.isnan(pldarray)):
+                    plot_hovmuller(dates, depth, pldarray, levels=ALEV, outfile=outfild, ymax=ymax, cmap=cmap_zero)
         
     return
     

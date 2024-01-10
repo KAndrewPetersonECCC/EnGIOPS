@@ -214,19 +214,19 @@ def shapiro2D(FLD,npass=1, wtc=None):
 
     return NFLD, wtc
 
-def SHAPIRO_RETURN(L, N, dx=1):
+def SHAPIRO_RETURN(L, N, n=1, dx=1):
     SINE = np.sin( np.pi * dx / L )
-    R = ( 1 - np.square(SINE) )**N
+    R = ( 1 - np.square(SINE)**(n) )**N
     return R
 
 def LENGTH(max, iter=1):
     LENGTH = np.arange(2*iter, max, iter)
     return LENGTH
 
-def SHAPIRO_CUTOFF(L, N, dx=1, cut=0.01):
-    R =SHAPIRO_RETURN(L, N, dx=dx)
-    PASS = np.where( R > cut )
+def SHAPIRO_CUTOFF(L, N, n=1, dx=1, cut=0.01):
+    R =SHAPIRO_RETURN(L, N, n=n, dx=dx)
+    PASS = np.where( ( R > cut ) & ( L > 2*dx ) )
     CUTT = np.where( R < cut )
-    MIN = np.min(L[PASS[0]])
-    MAX = np.max(L[CUTT[0]])
-    return MIN, MAX
+    MIN_KEPTINN = np.min(L[PASS[0]])
+    MAX_REMOVED = np.max(L[CUTT[-1]])
+    return MAX_REMOVED, MIN_KEPTINN

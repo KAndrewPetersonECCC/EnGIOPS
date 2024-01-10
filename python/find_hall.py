@@ -28,7 +28,7 @@ def get_main_host(hall=None):
     if ( hall == None ):
         hall = find_hall()
     host_num = hall[4]
-    host='eccc-ppp'+host_num
+    host='ppp'+host_num
     return host
 
 def get_ppp(hall=None):

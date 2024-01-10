@@ -195,7 +195,7 @@ def find_profile(years=[2020, 2021], test_interpolate=False, mp_system=False, mp
                 TFLD_ENmask = [np.ma.array(TFLD[it,iz,:,:], mask=1-Nmask[iz,:,:]) for TFLD in ETFLD]
                 TFLD_ALL.extend( [TFLD_gumask, TFLD_gdmask]+TFLD_ENmask) 
             print("ENTERING MULTIPROCESSING for INTERPOLATE LEVEL")
-            nproc = len(NCPUS)
+            nproc = NCPUS
             process_pool = multiprocessing.Pool(nproc)
             izip = list(zip(TFLD_ALL, itertools.repeat(lonn), itertools.repeat(latn), itertools.repeat(lon_pt), itertools.repeat(lat_pt) ))
             RTN_LIST = process_pool.starmap(partial(find_value_at_point.interpolate_to_point, method='linear', convlon=False), izip)

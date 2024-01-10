@@ -43,6 +43,7 @@ def read_coord(hall=hall, grid='T'):
         e2t=np.transpose( np.squeeze(dataset.variables['e2f'][:]) )
         nav_lon=np.transpose( np.squeeze(dataset.variables['glamf'][:]) )
         nav_lat=np.transpose( np.squeeze(dataset.variables['gphif'][:]) )
+    dataset.close()
     return nav_lon, nav_lat, e1t*e2t
  
 def read_mask(var='tmask', hall=hall):
@@ -54,6 +55,7 @@ def read_mask(var='tmask', hall=hall):
     dataset = netCDF4.Dataset(file) 
     mask=np.squeeze(dataset.variables[var][:])
     mask=np.moveaxis(mask, [0, 1, 2], [0, 2, 1])
+    dataset.close()
     return mask
 
 def vars_in_mesh(hall=hall):
@@ -63,6 +65,7 @@ def vars_in_mesh(hall=hall):
     #print('Mesh Mask file = ', file)
     dataset = netCDF4.Dataset(file) 
     variables = dataset.variables.keys()
+    dataset.close()
     return variables
     
 def read_mesh_var(var, hall=hall):
@@ -74,6 +77,7 @@ def read_mesh_var(var, hall=hall):
     var=np.squeeze( dataset.variables[var][:] )
     # transpose last x and y positions (for adherence with standard file)
     var=np.transpose(var, list(range(var.ndim-2))+[-1, -2])
+    dataset.close()
     return var
  
 def read_coord_mesh(hall=hall,grid='T'):
@@ -102,6 +106,7 @@ def read_coord_mesh(hall=hall,grid='T'):
         e2t=np.transpose( np.squeeze(dataset.variables['e2f'][:]) )
         nav_lon=np.transpose( np.squeeze(dataset.variables['glamf'][:]) )
         nav_lat=np.transpose( np.squeeze(dataset.variables['gphif'][:]) )
+    dataset.close()
     return nav_lon, nav_lat, e1t*e2t
 
 def read_e3t_mesh(hall=hall, var='e3t_0'):
@@ -173,6 +178,7 @@ def read_angle(hall=hall, grid='T'):
     print(file)
     dataset = netCDF4.Dataset(file) 
     angle = []
+    dataset.close()
     return angle
 
 def read_bathymetry(hall=hall):
@@ -184,5 +190,6 @@ def read_bathymetry(hall=hall):
     dataset = netCDF4.Dataset(file) 
     bathy=dataset['Bathymetry'][:]
     bathy=np.transpose( bathy )
+    dataset.close()
     return bathy
 

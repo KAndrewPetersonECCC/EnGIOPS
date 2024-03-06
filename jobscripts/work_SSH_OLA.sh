@@ -8,7 +8,7 @@ export MPLBACKEND=agg
 source jobscripts/prepython.sh
 
 python << EOD
-from importlib import reload
+#from importlib import reload
 import sys
 import os
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
@@ -28,8 +28,8 @@ enss=(21, 0, 1)
 ddir=[read_DF_VP.get_mdir(5,user='dpe000')]*3
 outdir=[expt for expt in expts]
 outdir=['GIOPS_T', 'GIOPS_330_GD', 'GIOPS_T0']
-LEV1 = np.arange(0, 0.21, 0.02)
-LEV2 = np.arange(-0.19, 0.2, 0.02)
-LEV3 = np.arange(-0.09, 0.1, 0.02)
+LEV1 = np.arange(0, 0.16, 0.01)
+LEV2 = np.arange(-0.095, 0.1, 0.01)
+LEV3 = np.arange(-0.045, 0.05, 0.01)
 read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre='ECMP_', NP=20, LEV_posd=LEV1, LEV_anom=LEV2, LEV_diff=LEV3)
 EOD

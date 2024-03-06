@@ -85,15 +85,15 @@ def find_profile(years=[2020, 2021]):
         file_gdt = mir6+sl+'GIOPS_320_GD/SAM2/'+datestr_gd+'/DIA/ORCA025-CMC-TRIAL_1d_grid_T_'+datestr_gd+'00.nc'
 
         # FOR TESTING ONLY
-        file_e0='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives/GIOPS_T0/SAM2/'+datestr_gd+'/DIA/ORCA025-CMC-TRIAL_1d_grid_T_'+datestr_gd+'00.nc'
-        file_e3='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives/GIOPS_T3/SAM2/'+datestr_gd+'/DIA/ORCA025-CMC-TRIAL_1d_grid_T_'+datestr_gd+'00.nc'
+        file_e0='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T0/SAM2/'+datestr_gd+'/DIA/ORCA025-CMC-TRIAL_1d_grid_T_'+datestr_gd+'00.nc'
+        file_e3='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T3/SAM2/'+datestr_gd+'/DIA/ORCA025-CMC-TRIAL_1d_grid_T_'+datestr_gd+'00.nc'
 
         lonn, latn, TFLD_gu, SFLD_gu = read_dia.read_sam2_grid_t(file_gu)
         lonn, latn, TFLD_gd, SFLD_gd = read_dia.read_sam2_grid_t(file_gdt)
         lon0, lat0, TFLD_e0, SFLD_e0 = read_dia.read_sam2_grid_t(file_e0)
         lon3, lat3, TFLD_e3, SFLD_e3 = read_dia.read_sam2_grid_t(file_e3)
-        lone, late, ETFLD = read_dia.read_ensemble(hir5, EGIOPS, GDD[iyear], fld='T', file_pre='ORCA025-CMC-TRIAL_1d_')
-        lone, late, ESFLD = read_dia.read_ensemble(hir5, EGIOPS, GDD[iyear], fld='S', file_pre='ORCA025-CMC-TRIAL_1d_')
+        lone, late, ETFLD = read_dia.read_ensemble(mir5, EGIOPS, GDD[iyear], fld='T', file_pre='ORCA025-CMC-TRIAL_1d_')
+        lone, late, ESFLD = read_dia.read_ensemble(mir5, EGIOPS, GDD[iyear], fld='S', file_pre='ORCA025-CMC-TRIAL_1d_')
 
         depthT =  read_dia.read_sam2_levels(file_e0)
         TIMES = read_dia.read_sam2_times(file_gdt)
@@ -193,6 +193,9 @@ def find_profile(years=[2020, 2021]):
         Tfig.savefig('MNDprofiles/Tprofiles_'+syear+'.png')
         Sfig.savefig('MNDprofiles/Sprofiles_'+syear+'.png')
         Cfig.savefig('MNDprofiles/Cprofiles_'+syear+'.png')
+        Tfig.savefig('MNDprofiles/Tprofiles_'+syear+'.pdf')
+        Sfig.savefig('MNDprofiles/Sprofiles_'+syear+'.pdf')
+        Cfig.savefig('MNDprofiles/Cprofiles_'+syear+'.pdf')
         plt.close(Tfig)
         plt.close(Sfig)
         plt.close(Cfig)
@@ -232,6 +235,9 @@ def find_profile(years=[2020, 2021]):
             Tfig.savefig('MNDprofiles/Tprofiles_'+tit+'_'+syear+'.png')
             Sfig.savefig('MNDprofiles/Sprofiles_'+tit+'_'+syear+'.png')
             Cfig.savefig('MNDprofiles/Cprofiles_'+tit+'_'+syear+'.png')
+            Tfig.savefig('MNDprofiles/Tprofiles_'+tit+'_'+syear+'.pdf')
+            Sfig.savefig('MNDprofiles/Sprofiles_'+tit+'_'+syear+'.pdf')
+            Cfig.savefig('MNDprofiles/Cprofiles_'+tit+'_'+syear+'.pdf')
             plt.close(Tfig)
             plt.close(Sfig)
             plt.close(Cfig)

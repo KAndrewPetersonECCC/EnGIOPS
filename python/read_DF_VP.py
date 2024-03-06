@@ -523,7 +523,7 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
         nproc=min([num_cpus, len(dates)])
         process_pool = multiprocessing.Pool(nproc)
         izip = list(zip(dates, itertools.repeat(expt)))
-        print(izip)
+        #print(izip)
         RTN_LIST = process_pool.starmap_async(partial(calc_errors_date, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=False), izip)
         process_pool.close()
         process_pool.join()
@@ -695,12 +695,12 @@ def plot_profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
 
     return
 
-def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', maxdepths=[200, 500, 2000], noensstat=False):
+def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', maxdepths=[200, 500, 2000], noensstat=False, nostdstat=False):
     for ifld, fld in enumerate(['T','S']):
-        plot_profile_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths, noensstat=noensstat)
+        plot_profile_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths, noensstat=noensstat, nostdstat=nostdstat)
     return
     
-def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False):
+def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False, nostdstat=False):
     nexpts = len(df_profile_list)
     title = fld+'-profile'
     dvar = 'depth_'+fld
@@ -725,7 +725,9 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
     these_lines = lines.copy()
     if ( noensstat ):
         these_lines = [ 'mean', 'rmse', 'stde' ]
-    
+    if ( nostdstat ):
+        these_lines.remove('stde')    
+
     nlines = len(these_lines)
     for lina in these_lines:
         iline = lines.index(lina)
@@ -738,6 +740,8 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
 
     nlinee = []
     for ip, df_profile in enumerate(df_profile_list):
+        lwidth=1
+        if ( ip == 0 ): lwidth=3
         label = labels[ip]
         color = colors[ip%5]
         depth = df_profile[dvar].values
@@ -760,21 +764,23 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
             print('evar == 0', label, outpre) 
         if ( noensstat ):
             these_lines = [ 'mean', 'rmse', 'stde' ]
+        if ( nostdstat ):
+            these_lines.remove('stde')
         for lina in these_lines:
             iline=lines.index(lina)
             linestyle = linel[iline]
             if ( iline == 1 ):
-                ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, color=color, label=label)
+                ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, linewidth=lwidth, color=color, label=label)
                 expt_elementsL.append(ll)
                 expt_elementsd=[]
                 for iplot, maxdepth in enumerate(maxdepths):
-                    lt, = axeD[iplot].plot( errors[iline], depth, linestyle=linestyle, color=color, label=label)
+                    lt, = axeD[iplot].plot( errors[iline], depth, linewidth=lwidth, linestyle=linestyle, color=color, label=label)
                     expt_elementsd.append(lt)
                 expt_elementsD.append(expt_elementsd)
             else:
                 ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, color=color)
                 for iplot, maxdepth in enumerate(maxdepths):
-                    lt, = axeD[iplot].plot( errors[iline], depth, linestyle=linestyle, color=color)
+                    lt, = axeD[iplot].plot( errors[iline], depth, linewidth=lwidth, linestyle=linestyle, color=color)
 
     expt_legendL = axeL.legend(handles=expt_elementsL, loc='upper right')
     line_legendL = axeL.legend(handles=line_elementsL, loc='lower right')
@@ -783,7 +789,7 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
     axeL.add_artist(line_legendL)
     axeL.invert_yaxis()
     figL.savefig(outpre+fld+'profile.png')
-    print(outpre+fld+'profile.png')
+    figL.savefig(outpre+fld+'profile.pdf')
     plt.close(figL)
 
     for iplot, maxdepth in enumerate(maxdepths):
@@ -804,8 +810,8 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
         axeD[iplot].add_artist(line_legendD)
         axeD[iplot].set_ylim([0, maxdepth])
         axeD[iplot].invert_yaxis()
-        print(outpre+fld+'profile_'+mstr+'m.png')
         figD[iplot].savefig(outpre+fld+'profile_'+mstr+'m.png')
+        figD[iplot].savefig(outpre+fld+'profile_'+mstr+'m.pdf')
         plt.close(figD[iplot])
 
     return
@@ -920,7 +926,7 @@ def plot_diff_field(bin1, bin2, drop=['ensvvo', 'ensvvf', 'vf', 'vo'], titpre=''
 
 def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False):
     deterministic = False
-    print(ens_passed)
+    #print(ens_passed)
     if ( ( isinstance(ens_passed, list) ) or ( isinstance(ens_passed, np.ndarray) ) ): ens = ens_passed
     if ( isinstance(ens_passed, type(None) ) ): deterministic = True
     if ( isinstance(ens_passed, int) ):
@@ -964,7 +970,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         nproc=min([num_cpus, len(expts)])
         process_pool = multiprocessing.Pool(nproc)
         izip = list(zip(itertools.repeat(dates), expts, enss, ddirs))
-        print(izip)
+        #print(izip)
         RTN_LIST = process_pool.starmap_async(partial(process_expt, mp_read=False, mp_date=False), izip)
         process_pool.close()
         process_pool.join()
@@ -990,7 +996,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         print("SORTED ", ( list(expt_list) == list(expts) ), expt_list, expts, sort_list, expt_copy )
     return gl_list, rgs_list, bin_list, grgs_list
 
-def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, outdirpre='', noensstat=False):
+def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, outdirpre='', noensstat=False, nostdstat=False):
     if ( mp_expt and mp_read ):
         print('WARNING:  Multitasking within multitasking not working')
     if ( len(date_range) > 3 ):
@@ -1017,12 +1023,12 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     gl_list, rgs_list, bin_list, grgs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date)
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
     outpreoutg=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+'Global'+'_'
-    plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat)
+    plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat, nostdstat=nostdstat)
     for iarea, area in enumerate(PAREAS.keys()):
         reg_list = [ rgs_series[iarea] for rgs_series in rgs_list ]
         title=area
         outpreouta=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+area+'_'
-        plot_profiles_multi(reg_list, labels, title=title, outpre=outpreouta, noensstat=noensstat)
+        plot_profiles_multi(reg_list, labels, title=title, outpre=outpreouta, noensstat=noensstat, nostdstat=nostdstat)
     print("FINISHED PROFILE PLOTS")
 
     for ilevel, level in enumerate(Levels):
@@ -1117,7 +1123,7 @@ def plot_hov_vars(dates, binv, bin0, ibin, lab, lab0, dir, dir0, areanam, plotdi
         ALEV = find_good_contour_levels(pldarray)
         if ( np.all(CLEV==0) ): CLEV=None
         if ( np.all(ALEV==0) ): ALEV=None
-        print('CLEV/ALEV', CLEV, ALEV)
+        #print('CLEV/ALEV', CLEV, ALEV)
         for ymax in [500, 2000]: 
             ystr=''
             if ( ymax != 2000 ): ystr=str(int(ymax))

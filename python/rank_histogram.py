@@ -192,6 +192,7 @@ def rank_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site5, 
     return hist_sm
 
 def plot_histogram(hist_np, title, pfile):
+    if ( isinstance(hist_np, pd.core.frame.DataFrame) ): hist_np = hist_np.to_numpy()
     if ( isinstance(hist_np, list) ): hist_np = np.array(hist_np).astype(float)
     fig=plt.figure()
     axe=plt.subplot()

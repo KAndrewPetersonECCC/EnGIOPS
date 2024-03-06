@@ -37,7 +37,7 @@ datess=[datet, datet, datet, datet]
 
 sub_exptss = exptss.copy()
 sub_exptss = [orig, oria, orib, oriaa]
-sub_exptss = [oriaa]
+sub_exptss = [oria, orib, orig]
 for iexpts, expts  in enumerate(sub_exptss):
     jexpts = exptss.index(expts)
     print('jexpts', jexpts)
@@ -55,7 +55,7 @@ for iexpts, expts  in enumerate(sub_exptss):
     # default mp_read=True only makes sense for ensemble experiments.
     #mp_date option might be good.
     try:
-        read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre,noensstat=True)
+        read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre,noensstat=True, nostdstat=True)
     except:
          print(traceback.print_exc())
 

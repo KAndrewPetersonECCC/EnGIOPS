@@ -32,14 +32,21 @@ def make_hist(rank, ncount):
     hist[rank] = 1
     return hist
 
-def dataframe_rank( df_in, var, unique, ncount=21):
-    df_full = rm_sub_ensembles(df_in, [var], unique, ncount=ncount)
+def dataframe_rank( df_in, var, unique, ncount=21, rmsub=True):
+    if ( rmsub ):
+        df_full = rm_sub_ensembles(df_in, [var], unique, ncount=ncount)
+    else:
+        df_full = df_in.copy()
     df_group_full = df_group_unique(df_full, [var], unique)
     df_rank = df_group_full.apply(lambda x: rank(x.values.flatten())).rename('rank').reset_index()
+    df_size = df_group_full.count().rename('size').reset_index()
+    df_rank = pd.concat([df_rank, df_size], axis=1)
     return df_rank
 
 def dataframe_hist( df_rank, ncount=21 ):
     df_hist = df_rank['rank'].apply( lambda x: make_hist(x, ncount) ).rename('hist').reset_index()
+    df_size = df_rank['size']
+    df_hist = pd.concat([df_rank, df_size], axis=1)
     return df_hist
 
 def dataframe_sum_hist(df_hist):

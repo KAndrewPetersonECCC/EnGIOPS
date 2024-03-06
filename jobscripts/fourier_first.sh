@@ -2,12 +2,19 @@
 #ord_soumet /home/dpe000/EnGIOPS/jobscripts/fourier_first.sh -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash
 #bash /home/dpe000/EnGIOPS/jobscripts/fourier_first.sh -d=CCYYMMDD
 
+## DEFAULTS
+SLOW=False
+
 ## GET arguments
 for i in "$@"
 do
 case $i in
     -d=*|--date=*)
     DATE="${i#*=}"
+    shift # past argument=value
+    ;;
+    -s|--slow)
+    SLOW=True
     shift # past argument=value
     ;;
 esac
@@ -27,10 +34,11 @@ DATE=${DATE:0:8}
 WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
 
-for VAR in SST T SSU SSV MLD U15 V15 TAUX TAUY Tsppt Ssppt; do 
+#for VAR in SST T SSU SSV MLD U15 V15 TAUX TAUY Tsppt Ssppt; do 
+for VAR in TAUX TAUY ; do 
 
-BJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}.sh
-PJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}.py
+BJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.sh
+PJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.py
 SJOB="ord_soumet ${BJOB} -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash"
 
 cat > ${BJOB} << EOB
@@ -57,8 +65,12 @@ import check_date
 
 import fourier_analysis
 
+slow=${SLOW}
 date=check_date.check_date(${DATE}, outtype=datetime.datetime)
-kwave, PSA_list, PSB_list = fourier_analysis.box_cycle_fast(date=date, var='${VAR}')
+if ( slow ):
+    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle(date=date, var='${VAR}')
+else:
+    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle_fast(date=date, var='${VAR}')
  
 print('kwave')
 print(kwave)

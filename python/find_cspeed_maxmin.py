@@ -41,7 +41,7 @@ cmap_anom='seismic'
 cmap_anom = copy.copy(cm.seismic)
 cmap_anom.set_bad('g', 1.0)
 cmap_full = copy.copy(cm.gist_stern_r)
-cmap_full.set_bad('r', 1.0)
+cmap_full.set_bad('g', 1.0)
 
 eg_file='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_320_GU/SAM2/20201009/DIA/ORCA025-CMC-ANAL_1d_grid_T_2020100900.nc'
 depth_default =  read_dia.read_sam2_levels(eg_file)
@@ -941,7 +941,7 @@ def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free',
     north_probl_REF = NORTH_PROBL_LIST[iref]
     north_brier_skill_ref = [(north_brier_REF - north_brier) / north_brier_REF for north_brier in NORTH_BRIER_LIST]
     north_brier_skill_obs = [(north_brier_OBS - north_brier) / north_brier_OBS for north_brier in NORTH_BRIER_LIST]
-    NORTH_PROBL_DIFF = [north_probl - north_probl_OBS for north_probl in north_PROBL_LIST]
+    NORTH_PROBL_DIFF = [north_probl - north_probl_OBS for north_probl in NORTH_PROBL_LIST]
     
     SOUTH_BRIER_LIST = subset_mean(ISOUTH, vld_BRIER_LIST, func=np.mean)
     SOUTH_PROBL_LIST = subset_mean(ISOUTH, vld_SUPER_LIST, func=np.mean)
@@ -975,7 +975,7 @@ def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free',
     print('BRIER SKILL Score wrt clim', global_brier_skill_obs)
     print('BRIER SKILL Score wrt '+reference, global_brier_skill_ref)
     print('obs clim ', global_probl_OBS, ' Frequency ', GLOBAL_PROBL_LIST)
-    print('obs clim ', global_brier_OBS, ' Brier Score ', [global_brier_OBS - global_brier_skill for global_brier_skill in global_brier_skill_obs])
+    print('obs clim ', global_brier_OBS, ' Brier Score ', [global_brier_OBS - global_brier_skill*global_brier_OBS for global_brier_skill in global_brier_skill_obs])
 
     print("NORTH EXTRATROPICS")
     print(BRIER_LIST_LABELS)

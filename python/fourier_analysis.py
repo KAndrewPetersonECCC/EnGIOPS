@@ -4,10 +4,13 @@ this_dir='/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/EnGIOPS/python'
 sys.path.insert(0, this_dir)
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tk
 import datetime
 import numpy as np
 import scipy.stats
 import subprocess
+import glob
+import os
 
 
 import fft_giops
@@ -23,6 +26,54 @@ hir5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
 hir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
 mir5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives'
 mir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
+
+def inverse(x):
+    """Vectorized 1/x, treating x==0 manually"""
+    x = np.array(x, float)
+    near_zero = np.isclose(x, 0)
+    x[near_zero] = np.inf
+    x[~near_zero] = 1 / x[~near_zero]
+    return x
+
+def forlog(x):
+    y = np.log10(inverse(x))
+    return y
+    
+def baclog(x):
+    y = inverse(10**x)
+    return y
+    
+def convert_xticks(xticks, thisfunction=inverse):
+    new_xticks = thisfunction(xticks)
+    new_xlabels = [ str(xtick) for xtick in new_xticks ]
+    return new_xlabels
+    
+def adjust_xaxis(taxe, logrange=np.array([1,3])):
+    if ( isinstance(logrange, list) ): logrange = np.array(logrange)
+    alogrange = np.arange(logrange[0], logrange[1]+1)
+    blogrange = np.arange(logrange[0], logrange[1])
+    logrmin = logrange[0]
+    logrmax = logrange[1]
+    e10range = 10**logrange
+    e10rmin = 10**logrmin
+    e10rmax = 10**logrmax
+    #taxe.set_xscale('function', functions=(forlog, baclog))
+    taxe.xaxis.set_major_formatter(tk.NullFormatter())
+    taxe.xaxis.set_minor_formatter(tk.NullFormatter())
+    taxe.set_xlim(inverse(np.flip(10**logrange)))
+    taxe.set_xticks(inverse(np.flip(10**alogrange)))
+    taxe.set_xticks(np.flip(inverse(np.concatenate([np.arange(2,10)*10**(1*ii) for ii in blogrange]))), minor=True)
+    Xxticks = taxe.get_xticks()
+    Mxticks = taxe.get_xticks(minor=True)
+    OldXlabels = taxe.get_xticklabels()
+    NewXxticks = inverse(Xxticks)
+    NewXlabels = [ str(int(round(xtick))) for xtick in NewXxticks]
+    #print(OldXlabels, NewXlabels)
+    #print('old labels', taxe.get_xticklabels())
+    taxe.set_xticklabels(NewXlabels)
+    #print('new labels', taxe.get_xticklabels())
+    taxe.set_xlabel('Wavelength')
+    return taxe
 
 def cycle_lon(lons):
     clons = (lons+180)%360 - 180
@@ -450,14 +501,14 @@ def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
     PSB_array = np.array(PSB_fulllist)
     print(PSA_array.shape)
     print(PSB_array.shape)
-    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX.O/'+var+'_psd_'+datestr+'.nc')
    
     #return kvals, Mbins, Ebins, Mbins_list, Ebins_list   
     return kwave, PSA_fulllist, PSB_fulllist
 
-def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
+def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='nearest'):
     datestr = check_date.check_date(date, outtype=str)
-    outdir='BOX_'+datestr+'/'
+    outdir='BOX.S_'+datestr+'/'
     rc=subprocess.call(['mkdir', outdir])
     BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
     oar=var
@@ -498,12 +549,13 @@ def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
         for ii, LAT in enumerate(LATS):
             if ( lat > LAT-1 ): icol=ii
         LLGRID = GRIDS[ibox]
-        SST_BOX = fft_giops.interpolate_to_box_with_mask(MSST, LONLAT, LLGRID, method='2sweep')
+        # method needs to be 'nearest' for all boxes to complete -- or use cycle_box_fast!
+        SST_BOX = fft_giops.interpolate_to_box_with_mask(MSST, LONLAT, LLGRID, method=method)
         KW, PSM = fft_giops.get_welch_psd(SST_BOX)
         PSA = PSA + PSM / nbox
         PSE = np.zeros(npsd)
         for eSST in ESST:
-            SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, LONLAT, LLGRID, method='2sweep')
+            SST_BOX = fft_giops.interpolate_to_box_with_mask(eSST, LONLAT, LLGRID, method=method)
             kw, PSW = fft_giops.get_welch_psd(SST_BOX)
             PSE = PSE + PSW/ne
         PSB = PSB+PSE/nbox
@@ -557,7 +609,7 @@ def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
     PSB_array = np.array(PSB_fulllist)
     print(PSA_array.shape)
     print(PSB_array.shape)
-    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX.S/'+var+'_psd_'+datestr+'.nc')
    
     return kwave, PSA_fulllist, PSB_fulllist
 
@@ -678,9 +730,25 @@ def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
    
     return kwave, PSA_fulllist, PSB_fulllist
 
-def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):  
+def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outdir='BOX/'):  
+    if ( isinstance(date_list, type(None)) ):
+        invar=var
+        if ( var == 'K15' ): invar='U15'
+        if ( var == 'KE0' ): invar='SSU'
+        if ( var == 'TAUK' ): invar='TAUX'
+        files=glob.glob(indir+invar+'_psd_'+'????????'+'.nc')
+        date_list=[]
+        startx=5+len(invar)
+        finalx=startx+8
+        for file in files:
+            date_list.append(os.path.basename(file)[startx:finalx])
+        date_list=sorted(date_list)
+        print('DATE LIST ', date_list)
     date_list = check_date.check_date_list(date_list, outtype=datetime.datetime)
     BOXES, GRIDS, LATS = create_BOXES(gdx=BOX_INFO['gdx'], GDX=BOX_INFO['GDX'], threshold=BOX_INFO['threshold'])
+    clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    cl5 = ['g', 'm', 'r', 'c', 'b']
+    nclr = len(clr)
 
     oar=var
     if ( var == 'T' ): oar='T100'
@@ -692,9 +760,10 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):
     npsd = int((N+1)/2)
     print(N, npsd)
 
-    kwave = fft_giops.find_wavenumber(npsd-1,BOX_INFO['gdx'])
-    kwav2 = fft_giops.find_wavenumber(npsd,BOX_INFO['gdx'])
-    kwave = kwave[:npsd]
+    # SMALLEST WAVELENGTH SHUULD BE TWICE THE GRID SPACE.  fftfreq needs to be normalized (N)/(N-1)
+    kwave = fft_giops.find_wavenumber(N,BOX_INFO['gdx']) * N / (N-1)
+    kwav2 = kwave[:npsd]
+    print("SMALLEST WAVELENGTH", 1 / kwav2[-1])
     
     psd_mean_list = []
     psd_memb_list = []
@@ -704,32 +773,36 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):
     for date in date_list:
         datestr = check_date.check_date(date, outtype=str)
         if ( var == 'K15' ):
-          ncfile = 'BOX/'+'U15'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'U15'+'_psd_'+datestr+'.nc'
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
-          ncfile = 'BOX/'+'V15'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'V15'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         elif ( var == 'KE0' ):
-          ncfile = 'BOX/'+'SSU'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'SSU'+'_psd_'+datestr+'.nc'
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
-          ncfile = 'BOX/'+'SSV'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'SSV'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         elif ( var == 'TAUK' ):
-          ncfile = 'BOX/'+'TAUX'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'TAUX'+'_psd_'+datestr+'.nc'
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
-          ncfile = 'BOX/'+'TAUY'+'_psd_'+datestr+'.nc'
+          ncfile = indir+'TAUY'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         else:
-          ncfile = 'BOX/'+var+'_psd_'+datestr+'.nc'
+          ncfile = indir+var+'_psd_'+datestr+'.nc'
           kwave_date, psd_mean, psd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+      
+        # SMALLEST WAVELENGTH SHUULD BE TWICE THE GRID SPACE.  fftfreq needs to be normalized (N)/(N-1)
+        ## REMOVE IFF DONE IN CYCLE_BOX  !!!!!
+        kwave_date = kwave_date * N / (N-1)
         print(ncfile)
-        print('kwave', kwave, kwav2, kwave_date, np.all(kwave == kwave_date))
-        print(len(kwave), len(kwav2), len(kwave_date))
+        print('kwave', kwave, kwav2, kwave_date, np.all(kwave_date == kwave), np.all(kwave_date == kwav2)),
+        #print(len(kwave), len(kwav2), len(kwave_date))
         psd_mean_list.append(psd_mean)
         psd_memb_list.append(psd_memb)
         PSM = np.mean(psd_mean, axis=0)
@@ -746,17 +819,32 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):
         KTMN.append(kwave_date[1:][imn])
         if ( date == date_list[0] ):
             kwave = kwave_date
+            print("SMALLEST WAVELENGTH", 1 / kwave[-1])
+
+    print( "LIST LENGTHS", len(psd_mean_list), len(psd_memb_list) )            
     psd_mean = sum(psd_mean_list) / len(psd_mean_list)
     psd_memb = sum(psd_memb_list) / len(psd_memb_list)
 
     K05 = []  
-    KMN = []  
+    KMN = []
+    iLT = [ [] for LAT in LATS]
+    LATP = [-90, -60, -20, 20, 60, 90]
+    nlatp = len(LATP)-1
+    jLT = [ [] for LAT in LATP[1:] ]
     for ibox, BOX in enumerate(BOXES):
         lat = BOX[0][1]
-        icol = 0
+        ilat = 0
         for ii, LAT in enumerate(LATS):
-            if ( lat > LAT-1 ): icol=ii
+            if ( lat >= LAT ): ilat=ii
+        print('QUERY', ibox, ilat, len(LATS), lat, LATS)
+        iLT[ilat].append(ibox)
         LLGRID = GRIDS[ibox]
+        GLON, GLAT = LLGRID
+        midLAT = np.mean(GLAT)
+        for jj in range(nlatp):
+            minLat = LATP[jj]
+            maxLat = LATP[jj+1]
+            if ( ( minLat < midLAT ) and ( midLAT < maxLat ) ): jLT[jj].append(ibox)
         
         PSM = psd_mean[ibox, :]
         PSE = psd_memb[ibox, :]
@@ -770,68 +858,184 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, outdir='BOX/'):
             K05.append(kwave[0])
         KMN.append(kwave[1:][imn])
 
+    for ii, LAT in enumerate(LATS):
+        print('IQUERY', iLT[ii])
+    for jj in range(nlatp):
+        print('JQUERY', jLT[jj])
     #print(K05)
     K05 = np.array(K05)
     KMN = np.array(KMN)
     PSM = np.mean(psd_mean, axis=0)
     PSE = np.mean(psd_memb, axis=0)
+    iPSM = [np.zeros(kwave.shape)]*len(LATS)
+    iPSE = [np.zeros(kwave.shape)]*len(LATS)
+    iK05 = [0]*len(LATS)
+    iKMN = [0]*len(LATS)
+    iLAT = LATS.copy()
+    jPSM = [np.zeros(kwave.shape)]*nlatp
+    jPSE = [np.zeros(kwave.shape)]*nlatp
+    for ilat, LAT in enumerate(LATS):
+      if ( len(iLT[ilat]) > 0 ):   
+        iPSM[ilat] = np.mean(psd_mean[iLT[ilat], :], axis=0)
+        iPSE[ilat] = np.mean(psd_memb[iLT[ilat], :], axis=0)
+        iK05[ilat] = len(iLT[ilat])/sum(K05[iLT[ilat]])  # reciprocate to a wavelength here
+        iKMN[ilat] = len(iLT[ilat])/sum(KMN[iLT[ilat]])  # reciprocate to a wavelength here
+        iLAT[ilat] = sum([ np.mean(GRIDS[ilt][1]) for ilt in iLT[ilat] ])/len(iLT[ilat])
+        #iLAT[ilat] = sum([ np.mean(GRID[1]) for GRID in GRIDS[iLT[ilat]] ])/len(iLT[ilat])
+    for jlat in range(nlatp):
+      if ( len(jLT[jlat]) > 0 ):   
+        jPSM[jlat] = np.mean(psd_mean[jLT[jlat], :], axis=0)
+        jPSE[jlat] = np.mean(psd_memb[jLT[jlat], :], axis=0)
 
+    VLAT = []
+    VK05 = []
+    VKMN = []
+    for ilat, LAT in enumerate(LATS):
+        print(ibox, 'MIDLAT', GLAT, LAT, midLAT)
+        if ( len(iLT[ilat]) > 0 ):
+            VLAT.append(iLAT[ilat])
+            VK05.append(iK05[ilat])
+            VKMN.append(iKMN[ilat])
+                      
     fig, ax = plt.subplots()
-    ax.plot(date_list, KT05, linestyle='--', label='Ratio = 0.5')
+    #ax.plot(date_list, KT05, linestyle='--', label='Ratio = 0.5')
     ax.plot(date_list, KTMN, linestyle='-', label='Minimum Ratio') 
     ax.legend()
     ax.set_xlabel("dates")
-    ax.set_ylabel("$lambda$")
+    ax.set_ylabel("wavenumber")
     fig.tight_layout()
     ofile=outdir+"tRATIO."+oar+'.glb'+".png"
-      
+    fig.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(fig)
+           
+    gir, br = plt.subplots()
+    linestyle='-'
+    br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Global')
+    for ilat, lat in enumerate(LATS):
+        linestyle='-'
+        if ( ilat >= nclr ): linestyle='--'
+        if ( ilat >= 2*nclr ): linestyle='.'
+        br.semilogx(kwave[1:], iPSM[ilat][1:]/iPSE[ilat][1:], linestyle=linestyle, color=clr[ilat%nclr], label=str(lat))
+    br.legend()
+    br = adjust_xaxis(br)
+    br.set_xlabel("wavelength")
+    br.set_ylabel("Ratio")
+    br.grid(linestyle=':', color='gray', which='both')
+    gir.tight_layout()
+    ofile=outdir+"PSW_ratio."+oar+'.lat'+".png"
+    gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+
+    gir, br = plt.subplots()
+    gie, be = plt.subplots()
+    gim, bm = plt.subplots()
+    linestyle='-'
+    br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Global')
+    be.loglog(kwave[1:], PSE[1:], linestyle='-', color='k', label='Global')
+    bm.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='Global')
+    print('global ratio', PSM[1:]/PSE[1:], 'mean', PSM[1:], 'member', PSE[1:])
+    for jlat in range(nlatp):
+        linestyle='--'
+        minLat=LATP[jlat]
+        maxLat=LATP[jlat+1]   
+        if ( jlat == 0 ):
+            label = 'lat < '+str(maxLat)
+        elif ( jlat == nlatp-1 ):
+            label = 'lat > '+str(minLat)
+        else:
+            label = str(minLat)+' < lat < '+str(maxLat)
+        print('jlat ratio', jlat, label, jPSM[jlat][1:]/jPSE[jlat][1:], 'mean', jPSM[jlat], 'member', jPSE[jlat])
+        br.semilogx(kwave[1:], jPSM[jlat][1:]/jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
+        be.loglog(kwave[1:], jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
+        bm.loglog(kwave[1:], jPSM[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
+    br.legend()
+    br = adjust_xaxis(br)
+    br.set_xlabel("wavelength")
+    br.set_ylabel("Ratio")
+    br.grid(linestyle=':', color='gray', which='both')
+    gir.tight_layout()
+    ofile=outdir+"PSW_ratio."+oar+'.Lat'+".png"
+    gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gir)
+    be.legend()
+    be = adjust_xaxis(be)
+    be.set_xlabel("wavelength")
+    be.set_ylabel("Power")
+    be.grid(linestyle=':', color='gray', which='both')
+    gie.tight_layout()
+    ofile=outdir+"PSW_loglogE."+oar+'.Lat'+".png"
+    gie.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gie)
+    bm.legend()
+    bm = adjust_xaxis(bm)
+    bm.set_xlabel("wavelength")
+    bm.set_ylabel("Ratio")
+    bm.grid(linestyle=':', color='gray', which='both')
+    gim.tight_layout()
+    ofile=outdir+"PSW_loglogM."+oar+'.Lat'+".png"
+    gim.savefig(ofile, dpi = 300, bbox_inches = "tight")
+    plt.close(gim)
+
     gig, bx = plt.subplots()
     gir, br = plt.subplots()
-    bx.loglog(1.0/kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean')
-    bx.loglog(1.0/kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member')
-    br.semilogx(1.0/kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
+    bx.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean')
+    bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member')
+    br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
     bx.legend()
-    bx.set_xlabel("$lambda$")
-    bx.set_ylabel("$P(k)$")
+    bx = adjust_xaxis(bx)
+    bx.set_xlabel("wavelength")
+    bx.set_ylabel("PSD(k)")
+    bx.grid(linestyle=':', color='gray', which='both')
     gig.tight_layout()
     print(outdir, oar)
     ofile=outdir+"PSW_loglog."+oar+'.glb'+".png"
     gig.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gig)
     br.legend()
-    br.set_xlabel("$lambda$")
+    br = adjust_xaxis(br)
+    br.set_xlabel("wavelength")
     br.set_ylabel("Ratio")
+    br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.glb'+".png"
     gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gir)
-    #fft_giops.pcolormesh_with_box(lone, late, TSURF, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=BOXES, outfile='Boxes.png')
-
     GDX = BOX_DNFO['GDX'] 
     gdx = BOX_DNFO['gdx']
+
+    fig, ax = plt.subplots()
+    
+    #ZNOTE:  VKMN/VK05 are already wavelengths, not wavenumbers.
+    print('VLAT', VLAT)
+    print('VKMN', VKMN)
+    ax.plot(VLAT, VKMN, linestyle='-', color='r', label='Minimum Ratio')
+    #ax.plot(VLAT, VK05, linestyle='--', color='b', label='Ratio = 0.5')
+    ax.legend()
+    ax.set_xlabel('latitude')
+    ax.set_ylabel('length scale km')
+    ofile=outdir+"LATS."+oar+".png"
+    fig.savefig(ofile, dpi=300, bbox_inches = 'tight')
+    plt.close(fig)
+        
     izero = np.where(K05 == 0 )
     KFN = K05[:]
     if ( len(izero[0]) > 0 ):
-        KFN[izero] = 1.0 / gdx
+        KFN[izero] = 1.0 / GDX
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
-    print(LENGTH, np.max(LENGTH))
-    IBIG = np.where(LENGTH > GDX/2.0)
-    print('BIG', LENGTH[IBIG])
-    print('SCALE', GDX/5.0)
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=GDX/2.0, cmap='gist_stern_r', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png')
+    print('Max/mean length 05', np.max(LENGTH), np.mean(LENGTH))
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.5*GDX, cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png')
 
     izero = np.where(KMN == 0 )
     KFN = KMN[:]
     if ( len(izero[0]) > 0 ):
-        KFN[izero] = 1.0 / gdx
+        KFN[izero] = 1.0 / GDX
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
-    print(LENGTH, np.max(LENGTH))
-    IBIG = np.where(LENGTH > GDX/2.0)
-    print('BIG', LENGTH[IBIG])
-    print('SCALE', GDX/5.0)
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.4*GDX, cmap='gist_stern_r', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png')
+    print('Max/mean length MN', np.max(LENGTH), np.mean(LENGTH))
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.4*GDX, cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png')
+
+    print('COMPLETED PLOTING')
     return kwave, psd_mean, psd_memb, K05
         
     

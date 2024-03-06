@@ -7,6 +7,22 @@ import sys
 sys.path.insert(0, '/home/dpe000/GEOPS/python')
 import shapiro
 
+def inverse(x):
+    """Vectorized 1/x, treating x==0 manually"""
+    x = np.array(x, float)
+    near_zero = np.isclose(x, 0)
+    x[near_zero] = np.inf
+    x[~near_zero] = 1 / x[~near_zero]
+    return x
+
+def forlog(x):
+    y = np.log10(inverse(x))
+    return y
+    
+def baclog(x):
+    y = inverse(10**x)
+    return y
+    
 A = np.random.randn(1442, 1021)
 B, W = shapiro.shapiro2D(A, npass=100)
 
@@ -116,6 +132,16 @@ axe.loglog(kw, psa_v, color='m', linestyle=':', label='Welch PSD X')
 axe.loglog(kw, psa_u, color='c', linestyle=':', label='Welch PSD Y')
 axe.legend()
 axe.set_ylim([1e-10, 2])
+axe.grid(linestyle=':', color='b', which='both')
+axe.set_xlabel("Wavelength")
+#axe.set_xscale('function', functions=(forlog, baclog))
+Xxticks = axe.get_xticks()
+Xlabels = axe.get_xticklabels()
+Xxticks = inverse(Xxticks)
+Xlabels = [ str(xtick) for xtick in Xxticks]
+axe.set_xticklabels(Xlabels)
+#axt = axe.secondary_xaxis('top')
+#axt.set_xlabel('Wavenumber')
 axe.set_title("Plot with 2D FFT and Welch")
 fig.savefig('PSDD_hann/PSD_EG1.png')
 plt.close()

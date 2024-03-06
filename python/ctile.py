@@ -98,7 +98,7 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     if ( not isinstance(ticks, type(None)) ):
         cb.set_ticks(ticks)
     ax.coastlines()
-    fig.savefig(outfile)
+    fig.savefig(outfile,bbox_inches='tight')
     plt.close(fig)
 
     return

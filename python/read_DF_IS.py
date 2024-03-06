@@ -15,6 +15,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import matplotlib.dates as mdates
+import matplotlib.cm as cm
 import subprocess
 
 import ola_functions
@@ -24,6 +25,10 @@ import check_date
 import inside_polygon
 import nearest
 import cplot
+import copy
+
+import ensemble_functions
+import rank_histogram
 
 num_cpus = len(os.sched_getaffinity(0))
 intconvfac=10000.0
@@ -31,9 +36,16 @@ test_file='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives/GIOPS_T20/SAM2/2020
 if not os.path.isfile(test_file):
     print("WARNING: TEST FILE NOT PRESENT")
 
-cmap_anom = 'seismic'
-cmap_zero = 'RdYlBu_r'
-cmap_posd = 'gist_stern_r'
+cmap_anom = copy.copy(cm.seismic)
+cmap_anom.set_bad('g', 1.0)
+
+cmap_zero = copy.copy(cm.RdYlBu_r)
+cmap_zero.set_bad('g', 1.0)
+
+cmap_posd = copy.copy(cm.gist_stern_r)
+cmap_posd.set_bad('g', 1.0)
+
+cmap_ones = copy.copy(cm.hsv)
 
 
 def SSH_dataframe(input_file, SAT='ALL'):
@@ -112,12 +124,12 @@ def ensemble_average_SSH(df_EnSSH, count=21):
         print(NT)
     df_EaSSH = df_SSH.mean().reset_index()
     df_varSSH = df_SSH.var(ddof=0).reset_index()
-    df_EaSSH[['ensvar','varobs','varmod', 'varana']] = df_varSSH[['misfit', 'obs', 'mod', 'ana']].values   
+    df_EaSSH[['ensvar','varobs','varmod', 'varana']] = df_varSSH[['misfit', 'obs', 'mod', 'ana']].to_numpy()   
     return df_EaSSH
 
 def add_squared_error(df_SSH):
     df_NU = df_SSH.copy() 
-    misfit = df_SSH['misfit'].values
+    misfit = df_SSH['misfit'].to_numpy()
     sqrerr = np.square(misfit)
     df_NU['sqrerr'] = sqrerr
     return df_NU
@@ -128,37 +140,63 @@ def add_crps_SSH(df_EaSSH, df_EnSSH):
     df_NU = pd.concat([df_EaSSH, df_crps['crps']],axis=1)
     return df_NU
         
+def add_rank_SSH(df_EaSSH, df_EnSSH, nens=21):
+    df_rank = calc_rank_SSH(df_EnSSH, nens=nens)
+    df_NU = pd.concat([df_EaSSH, df_rank['rank', 'size']],axis=1)
+    return df_NU
 
 def calc_crps_SSH(df_EnSSH):
     df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt'], as_index='False')[['misfit']]
-    df_crps = df_SSH.apply(lambda x: read_DF_VP.calc_crps(x.values.flatten(),0)).rename('crps').reset_index()
+    df_crps = df_SSH.apply(lambda x: read_DF_VP.calc_crps(x.to_numpy().flatten(),0)).rename('crps').reset_index()
     return df_crps
 
     
 def calc_crps_SSHf(df_EnSSH):
     df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt'], as_index='False')[['obs', 'mod']]
-    df_crps = df_SSH.apply(lambda x: read_DF_VP.calc_crps(x['mod'].values.flatten(), x['obs'].mean())).rename('crps').reset_index()
+    df_crps = df_SSH.apply(lambda x: read_DF_VP.calc_crps(x['mod'].to_numpy().flatten(), x['obs'].mean())).rename('crps').reset_index()
     return df_crps
 
+def calc_rank_SSH(df_EnSSH, nens=21):
+    df_rank = ensemble_functions.dataframe_rank( df_EnSSH, 'misfit', ['Lat', 'Lon', 'tt'], ncount=nens, rmsub=False)
+    #df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt'], as_index='False')[['misfit']]
+    #df_rank = df_SSH.apply(lambda x:  ensemble_functions.rank(x.to_numpy().flatten()) ).rename('rank').reset_index()
+    #df_CNT = df_SSH.count().rename('size').reset_index()
+    #df_rank = pd.concat([df_rank, df_CNT], axis=1)
+    #df_hist = ensemble_functions.dataframe_hist( df_rank, ncount=nens )
+    return df_rank
+    
+def sum_rank(df_EaSSH, nens=21):
+    df_rank = df_EaSSH['rank', 'size']
+    df_esub = df_rank[df_rank['size'] != nens ]
+    df_hist = ensemble_functions.dataframe_hist( df_esub, ncount=nens)
+    df_sumh = df_esub['hist'].sum()
+    count = df_esub['hist'].count()
+    df_sumh['hcount'] = count
+    return df_sumh
 
 def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5), mp_read=True, SAT='ALL'):
     #mp_read = not mp   #  Need to find out how to run a child mp process inside another mp process.
     if ( deterministic ):
         df_EnSSH = read_deterministic_SSH(expt, date, ddir=ddir, SAT=SAT)
+        nens=1
     else:
         df_EnSSH = read_ensemble_SSH(expt, date, ddir=ddir, ens=ens, mp_read=mp_read, SAT=SAT)
+        nens=len(ens)
     df_EaSSH = ensemble_average_SSH(df_EnSSH)
     df_EaSSH = add_squared_error(df_EaSSH)
     df_EaSSH = add_crps_SSH(df_EaSSH, df_EnSSH)
+    df_EaSSH = add_rank_SSH(df_EaSSH, df_EnSSH, nens=nens)
     gl_series=summed_field(df_EaSSH)
+    hist_series = sum_rank(df_EaSSH, nens=nens)
     rgs_series = calc_region_errors(df_EaSSH)
     bin_series = sum_ongrid(df_EaSSH)
-    return gl_series, rgs_series, bin_series
+    return gl_series, rgs_series, bin_series, hist_series
     
 
 def average_field(df_EaSSH):
     df_Glave = df_EaSSH.mean()
     return df_Glave
+
 def summed_field(df_EaSSH):
     df_Glsum = df_EaSSH.sum()
     count = df_EaSSH['misfit'].count()
@@ -171,7 +209,7 @@ def calc_region_errors(df_EaSSH):
     rgs_series = []
     for region in regions:
         polygon = read_DF_VP.PAREAS[region]
-        points_are_inside = inside_polygon.test_inside_xyarray(polygon, df_EaSSH['Lon'].values, df_EaSSH['Lat'].values)[0]
+        points_are_inside = inside_polygon.test_inside_xyarray(polygon, df_EaSSH['Lon'].to_numpy(), df_EaSSH['Lat'].to_numpy())[0]
         df_region = df_EaSSH[points_are_inside]
         rg_series = summed_field(df_region)
         rgs_series.append(rg_series)
@@ -183,8 +221,8 @@ def put_ongrid(df, delta=DELTA, latlon=['Lat', 'Lon']):
     df_g = df.copy()
     nomlat, nomlon = latlon
     bins_lons, bins_lats, xlon, xlat, query_lon, query_lat = read_DF_VP.nearest.grid(delta=delta)
-    df_g['lat_bin'] = nearest.nearest3(query_lat, bins_lats, df[nomlat].values)
-    df_g['lon_bin'] = nearest.nearest3(query_lon, bins_lons, df[nomlon].values)
+    df_g['lat_bin'] = nearest.nearest3(query_lat, bins_lats, df[nomlat].to_numpy())
+    df_g['lon_bin'] = nearest.nearest3(query_lon, bins_lons, df[nomlon].to_numpy())
     df_g.drop(latlon,axis=1)
     return df_g
 
@@ -245,26 +283,82 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
            print("SINGLE DATE TIME", time.time() - time0, flush=True)
     print("ALL DATE TIME", time.time() - time00, flush=True)
     for idate, date in enumerate(dates):
-       add_gl_series, add_rgs_series, add_bin_series = ADD_RESULTS[idate]
-       gl_series, rgs_series, bin_series = addto_sums( ( gl_series, rgs_series, bin_series ), (add_gl_series, add_rgs_series, add_bin_series) )
+       add_gl_series, add_rgs_series, add_bin_series, add_hist_series = ADD_RESULTS[idate]
+       gl_series, rgs_series, bin_series, hist_series = addto_sums( ( gl_series, rgs_series, bin_series ), (add_gl_series, add_rgs_series, add_bin_series) )
        day_gl_series, day_rgs_series = apply_averaging(add_gl_series, add_rgs_series)
        tglrs_series = addto_tlist(idate, tglrs_series, [day_gl_series]+day_rgs_series, SSHvars)
 
     # Apply Final Averaging on area averages
     gl_series_avg, rgs_series_avg = apply_averaging(gl_series, rgs_series, count_name='count', coord_list=SSHaxis)
+    hist_series_avg = final_mean(hist_series, 'hcount', coord_list=[])
     
     # Subset bin_series to Levels
     bin_series_avg = apply_bin_averaging(bin_series, count_name='count', llvars=['lon_bin', 'lat_bin'], extra=['tt'])
+    bin_series_avg = add_ratio(bin_series_avg)
+    tglrs_series = add_ratio(tglrs_series)
     print("FINAL DATE TIME", time.time() - time00, flush=True)
-    return gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series
+    return gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg
 
-
+def add_ratio(df):
+    print('MAIN TYPE', type(df) )
+    if ( isinstance(df, list) ):
+      print('SECONDARY TYPE', type(df[0]))
+      if ( isinstance(df[0], pd.core.frame.DataFrame) or isinstance(df[0], pd.core.series.Series) or isinstance(df[0], list) ):
+        df_list = []
+        for dfe in df:
+            dfn = add_ratio(dfe)
+            df_list.append(dfn)
+        return df_list
+    print('TYPE', type(df))
+    if ( isinstance(df, pd.core.frame.DataFrame) ):
+        oberr = np.square(df['oerr'].to_numpy())
+        sqerr = df['sqrerr'].to_numpy()
+        envar = df['ensvar'].to_numpy()
+        lwerr = sqerr - oberr
+        upvar = envar + oberr
+    elif ( isinstance(df, pd.core.series.Series) ):
+        oberr = np.square(df['oerr'])
+        sqerr = df['sqrerr']
+        envar = df['ensvar']
+        lwerr = sqerr - oberr
+        upvar = envar + oberr
+    else:
+        print('UNKNOWN', type(df))
+        # Do Nothing for Now
+        return df
+    print('TYPE LW', type(lwerr))
+    if ( isinstance(lwerr, np.ndarray) ):
+        #lwerr[ np.where(lwerr < 0 ) ] = 0.0
+        ipos = np.where(envar > 0 )
+        ipps = np.where(upvar > 0 )
+        imin = np.where(lwerr < 0 )
+        ratir = np.ones(envar.shape)
+        ratio = np.ones(envar.shape)
+        ratip = np.ones(envar.shape)
+        if ( len(ipos[0]) > 0 ):  ratir[ipos] = np.sqrt(sqerr[ipos] / envar[ipos])
+        if ( len(ipos[0]) > 0 ):  ratio[ipos] = np.sqrt(lwerr[ipos] / envar[ipos])
+        if ( len(ipps[0]) > 0 ):  ratip[ipps] = np.sqrt(sqerr[ipps] / upvar[ipps])
+    elif ( isinstance(lwerr, np.float64) ):
+        #if ( lwerr < 0 ): lwerr = 0
+        ratir = 0.0
+        ratio = 0.0
+        ratip = 0.0
+        if ( envar > 0 ):  ratir = np.sqrt(sqerr / envar)
+        if ( envar > 0 ):  ratio = np.sqrt(lwerr / envar)
+        if ( upvar > 0 ):  ratip = np.sqrt(sqerr / upvar)
+    
+    df['ratir'] = ratir
+    df['ratio'] = ratio
+    df['ratip'] = ratip
+    return df
+    
 
 def addto_sums( old_sums, add_sums):
-    gl_series, rgs_series, bin_series = old_sums
-    add_gl_series, add_rgs_series, add_bin_series = add_sums
+    gl_series, rgs_series, bin_series, hist_series = old_sums
+    add_gl_series, add_rgs_series, add_bin_series, add_hist_series = add_sums
         
     gl_new = pd.concat([gl_series, add_gl_series], axis=1).sum(axis=1)
+    hist_new = pd.concat([hist_series, add_hist_series], axis=1).sum(axis=1)
     #print(gl_new['count'])
                 
     new_rgs_series = []
@@ -277,7 +371,7 @@ def addto_sums( old_sums, add_sums):
     gr_cat = pd.concat([bin_series, add_bin_series])
     gr_new = gr_cat.groupby(['lat_bin', 'lon_bin']).sum().reset_index()
         
-    return gl_new, new_rgs_series, gr_new   
+    return gl_new, new_rgs_series, gr_new, hist_new  
 
 
 def final_mean( df_sum, count_name, coord_list ):
@@ -348,8 +442,8 @@ def process_expt(dates, expt, ens_passed, this_ddir, mp_read=False, mp_date=True
        mp_read_pass = False
     else:
        mp_read_pass = mp_read            
-    gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read_pass, mp_date=mp_date, SAT=SAT, NP=NP)
-    return  expt, gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series
+    gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read_pass, mp_date=mp_date, SAT=SAT, NP=NP)
+    return  expt, gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg
      
 
 def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, SAT='ALL', NP=20):
@@ -361,6 +455,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
     bin_list = []
     tglrs_list = []
     expt_list = []
+    hist_list = []
     if ( isinstance(ddir, list) ): 
         ddirs=ddir
     else:
@@ -372,11 +467,12 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
             time0 = time.time()
             ens_passed = enss[iexpt]
             dir_passed = ddirs[iexpt]
-            expt_rtn, gl_series, rgs_series, bin_series, tglrs = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
+            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
             gl_list.append(gl_series)
             rgs_list.append(rgs_series)
             bin_list.append(bin_series)
             tglrs_list.append(tglrs)
+            hist_list.append(hist_series)
             expt_list.append(expt_rtn)
             time1 = time.time()
             print( 'Processing time ', iexpt, expt, time1-time0)
@@ -392,7 +488,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         FIN_LIST = RTN_LIST.get()
         sort_list = []
         for isort, fin_element in enumerate(FIN_LIST):
-            expt_rtn, gl_series, rgs_series, bin_series, tglrs = fin_element
+            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series = fin_element
             if ( expt_rtn != expts[isort] ):
                 print("WARNING: Experiments order not conserved!!")
                 print(isort, expt_rtn, expts[isort])
@@ -401,6 +497,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
             rgs_list.append(rgs_series)
             bin_list.append(bin_series)
             tglrs_list.append(tglrs)
+            hist_list.append(hist_series)
             expt_list.append(expt_rtn)
         expt_copy = expt_list.copy()
         expt_list = [ expt_list[isort] for isort in sort_list ]
@@ -411,13 +508,14 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         print("SORTED ", ( list(expt_list) == list(expts) ), expt_list, expts, sort_list, expt_copy )
     time1 = time.time()
     print( 'Total cycle_thur_expts Processing time ', 'ALL EXPTS', time1-time00, flush=True)
-    return gl_list, rgs_list, bin_list, tglrs_list
+    return gl_list, rgs_list, bin_list, tglrs_list, hist_list
 
 def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_date=False, mp_read=False, outdirpre='', noensstat=False, SAT='ALL', NP=20, LEV_posd=None, LEV_anom=None, LEV_diff=None):
     SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
-    dropvar = ['obs', 'ana', 'oerr', 'varobs', 'varmod', 'varana']
+    dropvar = ['obs', 'ana', 'varobs', 'varmod', 'varana']
     SSHpass = [ var for var in SSHvars if var not in dropvar ]
-    SSHvarslist =  ['count', 'misfit', 'sqrerr', 'ensvar', 'crps', 'mod']+['lon_bin', 'lat_bin']
+    SSHvarswant = ['count', 'misfit', 'sqrerr', 'ensvar', 'crps', 'mod', 'oerr']
+    SSHvarslist = SSHvarswant+['lon_bin', 'lat_bin']
     print(SSHpass, SSHvarslist)
     nexpts = len(expts)
     if ( mp_expt and mp_read ):
@@ -450,16 +548,19 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     datestr0 = check_date.check_date(dates[0],  dtlen=8)
     datestr1 = check_date.check_date(dates[-1], dtlen=8)
     datestrr = datestr0 + '_' + datestr1
-    gl_list, rgs_list, bin_list, tglrs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
+    gl_list, rgs_list, bin_list, tglrs_list, hist_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
 
     nexpt=len(expts)
     for iexpt, expt in enumerate(expts):
-        binL = bin_list[iexpt][SSHvarslist]
+        binL = bin_list[iexpt][SSHvarslist+['ratir', 'ratio', 'ratip']]
+        hisL = hist_list[iexpt]['hlist']
         outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'
         titpre=labels[iexpt]+' '+datestrr
         print('TITLE', titpre, len(titpre))
         plot_df_field(binL, titpre=titpre, outpre=outpreoutb, drop=dropvar, LEV_posd=LEV_posd, LEV_anom=LEV_anom)
+        outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'+'rank'
+        plot_rank_hist(hisL, titpre, outpreoutb) 
         print("FINISHED FULL FIELD SLA : ", labels[iexpt])
         if ( iexpt == 0 ): 
             bin0=binL
@@ -468,7 +569,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             titpre=labels[0]+'-'+labels[iexpt]+' '+datestrr
             print('TITLE', titpre, len(titpre))
             outpreoutb=odir+'/'+'SLA_'+datestrr+'_'
-            plot_diff_field(bin0, binL, titpre=titpre, outpre=outpreoutb, drop=dropvar, LEVS=LEV_diff)
+            plot_diff_field(bin0, binL, titpre=titpre, outpre=outpreoutb, drop=dropvar+['oerr'], LEVS=LEV_diff)
             print("FINISHED DIFF FIELD SLA : ", labels[iexpt])
     print("FINISHED SLA PLOTS")
 
@@ -480,37 +581,43 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             tglrs = tglrs_list[iexpt][iarea]
             tt_list = []
             for it, a_tglrs in enumerate(tglrs):
-                aa_tglrs = a_tglrs[SSHvarslist]
+                aa_tglrs = a_tglrs[SSHvarswant]
                 tt_list.append(aa_tglrs)
             tx_list.append(tt_list)
             
         print(tx_list[0][0].keys())
         plot_time_vars(dates, tx_list, labels, outdir[0], areanam, outdirpre=outdirpre)
     print("FINISHED TIMESERIES PLOTS")
-            
+
+    plot_histogram(hist_np, title, pfile)
     return
 
+def plot_rank_hist(df_hist, title, pfile):
+    if ( pfile.endswith(".png") or pfile.endswith(".pdf") ): pfile=pfile[:-4]
+    rank_histogram.plot_histogram(df_hist, title, pfile)
+    return
+    
 def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_anom=None):
    if ( isinstance(binF, list) or isinstance(binF, tuple) ): 
        for ibinF in binF:
            plot_df_field(ibinF, drop=drop, outpre=outpre)
        return
    binP = binF.copy()
-   lon_bin = binF['lon_bin'].values
-   lat_bin = binF['lat_bin'].values
+   lon_bin = binF['lon_bin'].to_numpy()
+   lat_bin = binF['lat_bin'].to_numpy()
    binP.drop(['lon_bin', 'lat_bin'], inplace=True, axis=1)
    for idrop in drop:
        if ( idrop in binP.keys() ): binP.drop([idrop], axis=1, inplace=True)
 
    print('Full Field', outpre, list(binP.keys()))   
    for vari in binP.keys():
-       fld = binF[vari].values
+       fld = binF[vari].to_numpy()
        varn = vari
        LEVS = None
+       cmap = cmap_posd
        if ( vari[0:6] == 'sqrerr' ):
            fld=np.sqrt(fld)
            varn='rmse'
-           cmap = cmap_posd
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
@@ -518,22 +625,46 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
        if ( vari[0:6] == 'ensvar' ):
            fld = np.sqrt(fld)
            varn='estd'
-           cmap = cmap_posd
+           if ( isinstance(LEV_posd, type(None)) ):
+               LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           else:
+               LEVS=LEV_posd
+       if ( vari[0:4] == 'crps' ):
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
                LEVS=LEV_posd
        if ( vari[0:6] == 'misfit' ):
            varn='merr'
-           cmap=cmap_anom
+           cmap=cmap_zero
            if ( isinstance(LEV_anom, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=False)
            else:
                LEVS=LEV_anom
+       if ( vari[0:4] == 'oerr' ):
+           varn=vari
+           if ( isinstance(LEV_posd, type(None)) ):
+               LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           else:
+               LEVS=LEV_posd
        if ( vari[0:3] == 'mod' ):
            varn=vari
            LEVS = read_DF_VP.find_good_contour_levels(fld, posd=False)
-           cmap = cmap_anom
+       if ( vari[0:5] == 'ratir' ):
+           varn=vari
+           #LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           LEVS = np.array([0, 0.25, 0.33, 0.5, 2.0/3.00, 0.75, 1.00, 4.0/3.0, 3.0/2.0, 2.00, 3.00, 4.00]) 
+           cmap = cmap_zero
+       if ( vari[0:5] == 'ratio' ):
+           varn=vari
+           #LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           LEVS = np.array([0, 0.25, 0.33, 0.5, 2.0/3.00, 0.75, 1.00, 4.0/3.0, 3.0/2.0, 2.00, 3.00, 4.00]) 
+           cmap = cmap_zero
+       if ( vari[0:5] == 'ratip' ):
+           varn=vari
+           #LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           LEVS = np.array([0, 0.25, 0.33, 0.5, 2.0/3.00, 0.75, 1.00, 4.0/3.0, 3.0/2.0, 2.00, 3.00, 4.00]) 
+           cmap = cmap_zero
        outfile=outpre+varn+'.png'
        print('TITLE', titpre, len(titpre))
        if ( len(titpre) > 0 ):
@@ -543,7 +674,7 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
        print(varn, 'Max/Min', np.max(fld), np.min(fld)) 
        # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
        if ( not np.all(fld == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
-           cplot.bin_pcolormesh(lon_bin, lat_bin, fld, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
+           cplot.pcolormesh(lon_bin, lat_bin, fld, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
 def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.arange(-0.1, 0.11, 0.02)):
@@ -573,18 +704,18 @@ def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.a
        fld1 = binP1.loc[:, [vari, 'lon_bin', 'lat_bin']]
        fld2 = binP2.loc[:, [vari, 'lon_bin', 'lat_bin']]
        if ( ( vari[0:6] == 'sqrerr' ) or ( vari[0:6] == 'ensvar' ) ):
-           fld1.loc[:, vari] = np.sqrt(fld1.loc[:, vari].values)
-           fld2.loc[:, vari] = np.sqrt(fld2.loc[:, vari].values)
+           fld1.loc[:, vari] = np.sqrt(fld1.loc[:, vari].to_numpy())
+           fld2.loc[:, vari] = np.sqrt(fld2.loc[:, vari].to_numpy())
        fldd = fld1.merge(fld2, on=['lon_bin', 'lat_bin']).eval(vari+'= '+vari+'_x'+' - '+vari+'_y').drop([vari+'_x', vari+'_y'], axis=1)
-       lon_bin = fldd.loc[:, 'lon_bin'].values  # DONT ASSUME SAME LAT/LONS
-       lat_bin = fldd.loc[:, 'lat_bin'].values  # DONT ASSUME SAME LAT/LONS
-       fldd_values = fldd.loc[:, vari].values
+       lon_bin = fldd.loc[:, 'lon_bin'].to_numpy()  # DONT ASSUME SAME LAT/LONS
+       lat_bin = fldd.loc[:, 'lat_bin'].to_numpy()  # DONT ASSUME SAME LAT/LONS
+       fldd_values = fldd.loc[:, vari].to_numpy()
        varn = vari
        if ( vari[0:6] == 'sqrerr' ):
            varn='rmse'
        if ( vari[0:6] == 'ensvar' ):
            varn='estd'
-       cmap = cmap_posd
+       cmap = cmap_zero
        print('TITLE', titpre, len(titpre))
        if ( len(titpre) > 0 ):
            title=titpre+' '+varn
@@ -593,7 +724,7 @@ def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.a
        outfile=outpre+varn+'.png'
        # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
        if ( not np.all(fldd_values == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
-           cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
+           cplot.pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
 def plot_time_vars(dates, t_lists, labels, outdir, areanam, outdirpre=''):

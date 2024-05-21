@@ -51,8 +51,18 @@ def get_mdir(n, user='dpe000', rpn='rpnenv', grp='mrd'):
     mdir='/fs/'+site+'/eccc/'+grp+'/'+rpn+'/'+user+'/maestro_archives'
     return mdir
     
-def VP_dataframe(input_file):
+def VP_dataframe(input_file, subset=0):
     df_VP = ola_functions.VP_dataframe(input_file)
+    if ( subset == 0 ):
+        pass
+    elif ( isinstance(subset, list) ):
+        df_list = []
+        for iset in subset:
+            df_sub = ola_functions.subset_df(df_VP, 'setID', iset)
+            df_list.append(df_sub)
+        df_VP = pd.concat(df_list).reset_index()
+    else:
+        df_VP = ola_functions.subset_df(df_VP, 'setID', subset)
     return df_VP
 
 lls = ['lon', 'lat']
@@ -61,43 +71,47 @@ def average_duplicate_profiles(df_VP):
     Average duplicate profiles in dataframe.
     Required so ensemble members only have set of distinct profiles.
     """
-    df_VP.loc[np.isfinite(df_VP['depth_T']), 'depth_T'] = (intconvfac * df_VP.loc[np.isfinite(df_VP['depth_T']), 'depth_T']).astype(int)
-    df_VP.loc[np.isfinite(df_VP['depth_S']), 'depth_S'] = (intconvfac * df_VP.loc[np.isfinite(df_VP['depth_S']), 'depth_S']).astype(int)
-    df_TP = df_VP.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['lon', 'lat', 'depth_T', 'date', 'voT', 'vfT', 'misfitT']]
-    df_TP_nodupl = df_TP.mean()
+    df_work = df_VP.copy()
+    if ( 'depth_T' in df_VP.keys() ):
+        df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T'] = (intconvfac * df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T']).astype(int)
+        df_TP = df_work.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['lon', 'lat', 'depth_T', 'date', 'voT', 'vfT', 'misfitT']]
+        df_TP_nodupl = df_TP.mean()
+        df_TP_nodupl.reset_index(drop=True, inplace=True)
+        #CHECK
+        df_TP = df_NU.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['lon', 'lat', 'depth_T', 'date', 'voT', 'vfT', 'misfitT']]
+        COUNT = df_TP.count()
+        DUPT = COUNT[COUNT['misfitT'] > 1]
+        if ( len(DUPT) != 0 ):
+            print('STILL T DUPLICATES', DUPT)
+        df_TP_nodupl.loc[:, 'depth_T'] = df_TP_nodupl.loc[:, 'depth_T'] / intconvfac
+    else:
+        df_TP_nodupl = init_df()
     
-    df_SP =  df_VP.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['lon', 'lat', 'depth_S', 'date', 'voS', 'vfS', 'misfitS']]
-    df_SP_nodupl = df_SP.mean()
-    
-    df_SP_nodupl.reset_index(drop=True, inplace=True)
-    df_TP_nodupl.reset_index(drop=True, inplace=True)
+    if ( 'depth_S' in df_VP.keys() ):
+        df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S'] = (intconvfac * df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S']).astype(int)
+        df_SP =  df_work.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['lon', 'lat', 'depth_S', 'date', 'voS', 'vfS', 'misfitS']]
+        df_SP_nodupl = df_SP.mean()
+        df_SP_nodupl.reset_index(drop=True, inplace=True)
+        #CHECK
+        df_SP = df_NU.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['lon', 'lat', 'depth_S', 'date', 'voS', 'vfS', 'misfitS']]
+        COUNS = df_SP.count()
+        DUPS = COUNS[COUNS['misfitS'] > 1]
+        if ( len(DUPS) != 0 ):
+            print('STILL S DUPLICATES', DUPS)
+        df_SP_nodupl.loc[:, 'depth_S'] = df_SP_nodupl.loc[:, 'depth_S'] / intconvfac
+    else:
+        df_SP_nodupl = init_df()
     
     df_NU = pd.concat([df_TP_nodupl, df_SP_nodupl])
-    
-    #CHECK
-    
-    df_TP = df_NU.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['lon', 'lat', 'depth_T', 'date', 'voT', 'vfT', 'misfitT']]
-    COUNT = df_TP.count()
-    DUPT = COUNT[COUNT['misfitT'] > 1]
-    
-    df_SP = df_NU.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['lon', 'lat', 'depth_S', 'date', 'voS', 'vfS', 'misfitS']]
-    COUNS = df_SP.count()
-    DUPS = COUNS[COUNS['misfitS'] > 1]
-    
-    if ( ( len(DUPT) != 0 ) or ( len(DUPS) != 0 ) ):
-        print('STILL DUPLICATES', DUPT, DUPS)
-
-    df_NU.loc[:, 'depth_T'] = df_NU.loc[:, 'depth_T'] / intconvfac
-    df_NU.loc[:, 'depth_S'] = df_NU.loc[:, 'depth_S'] / intconvfac
 
     return df_NU
 
-def read_member_VP(expt, date, iens,  ddir=get_mdir(5),  check_duplicate=True ):  
+def read_member_VP(expt, date, iens,  ddir=get_mdir(5),  check_duplicate=True, subset=0 ):  
     datestr8  = check_date.check_date(date, dtlen=8)
     datestr10 = check_date.check_date(date, dtlen=10)
     estr=str(iens)
     input_file=ddir+'/'+expt+estr+'/SAM2/'+datestr8+'/DIA/'+datestr10+'_SAM.ola'
-    df_VP = VP_dataframe(input_file)
+    df_VP = VP_dataframe(input_file, subset=subset)
     if ( check_duplicate ):
         df_NU = average_duplicate_profiles(df_VP)
     else:
@@ -105,13 +119,13 @@ def read_member_VP(expt, date, iens,  ddir=get_mdir(5),  check_duplicate=True ):
     df_NU['member'] = iens
     return df_NU 
 
-def read_ensemble_VP(expt, date, ddir=get_mdir(5), ens=list(range(21)), check_duplicate=True, mp_read=True):
+def read_ensemble_VP(expt, date, ddir=get_mdir(5), ens=list(range(21)), check_duplicate=True, mp_read=True, subset=0):
     nens = len(ens)
     df_list = []
     if ( not mp_read ):  
         df_list = []
         for ie in ens:
-            df_IE = read_member_VP(expt, date, ie, ddir=ddir, check_duplicate=check_duplicate)
+            df_IE = read_member_VP(expt, date, ie, ddir=ddir, check_duplicate=check_duplicate, subset=subset)
             df_list.append(df_IE)
     else:
         nproc=min([num_cpus, nens])
@@ -127,61 +141,65 @@ def read_ensemble_VP(expt, date, ddir=get_mdir(5), ens=list(range(21)), check_du
     df_EnVP = pd.concat(df_list).reset_index()
     return df_EnVP    
 
-def read_deterministic_VP(expt, date, ddir=get_mdir(5), check_duplicate=True ):      
+def read_deterministic_VP(expt, date, ddir=get_mdir(5), check_duplicate=True, subset=0 ):      
     datestr8  = check_date.check_date(date, dtlen=8)
     datestr10 = check_date.check_date(date, dtlen=10)
     input_file= ddir+'/'+expt+'/SAM2/'+datestr8+'/DIA/'+datestr10+'_SAM.ola'
-    df_list = [ VP_dataframe(input_file) ]
+    df_list = [ VP_dataframe(input_file, subset=subset) ]
     df_EnVP = pd.concat(df_list)
     return df_EnVP    
  
 def ensemble_average_VP(df_EnVP, count=21):
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T'].values).astype(int)
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S'].values).astype(int)
-    df_TP = df_EnVP.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['voT', 'vfT', 'misfitT']]
-    df_SP = df_EnVP.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['voS', 'vfS', 'misfitS']]
-
-    df_TCNT = df_TP.count()
-    df_SCNT = df_SP.count()
-
-    LT = len(df_TCNT[df_TCNT['misfitT'] < count ])     
-    LS = len(df_SCNT[df_SCNT['misfitS'] < count ])     
-    print('Number of SubEnsembles = ', LT, LS)    
-
-    NT = len(df_TCNT[df_TCNT['misfitT'] > count ])
-    NS = len(df_SCNT[df_SCNT['misfitS'] > count ])
-    if ( ( NT > 0 ) or ( NS > 0 ) ):
-        print("WARNING:  Too many Ensemble Members")
-        print(NT, NS)
-    
-    df_aTP = df_TP.mean().reset_index()
-    df_aSP = df_SP.mean().reset_index()
-    df_sTP = df_TP.var(ddof=0).reset_index()
-    df_sSP = df_SP.var(ddof=0).reset_index()
-    
-
-    df_aTP[['ensvarT','ensvvoT','ensvvfT']] = df_sTP[['misfitT', 'voT', 'vfT']].values   
-    df_aSP[['ensvarS','ensvvoS','ensvvfS']] = df_sSP[['misfitS', 'voS', 'vfS']].values   
+    df_work = df_EnVP.copy()
+    if ( 'depth_T' in df_EnVP.keys() ):
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T'].values).astype(int)
+        df_TP = df_work.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['voT', 'vfT', 'misfitT']]
+        df_TCNT = df_TP.count()
+        LT = len(df_TCNT[df_TCNT['misfitT'] < count ])     
+        print('Number of SubEnsembles = ', LT)    
+        NT = len(df_TCNT[df_TCNT['misfitT'] > count ])
+        if ( ( NT > 0 ) ):
+            print("WARNING:  Too many Ensemble Members")
+            print(NT)
+        df_aTP = df_TP.mean().reset_index()
+        df_sTP = df_TP.var(ddof=0).reset_index()
+        df_aTP[['ensvarT','ensvvoT','ensvvfT']] = df_sTP[['misfitT', 'voT', 'vfT']].values   
+        df_aTP.loc[:, 'depth_T'] = df_aTP['depth_T'].values / intconvfac  
+    else:
+        df_aTP = init_df()
+    if ( 'depth_S' in df_EnVP.keys() ):
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S'].values).astype(int)
+        df_SP = df_work.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['voS', 'vfS', 'misfitS']]
+        df_SCNT = df_SP.count()
+        LS = len(df_SCNT[df_SCNT['misfitS'] < count ])     
+        print('Number of SubEnsembles = ', LS)   
+        NS = len(df_SCNT[df_SCNT['misfitS'] > count ])
+        if ( ( NS > 0 ) ):
+            print("WARNING:  Too many Ensemble Members")
+            print(NS)
+        df_aSP = df_SP.mean().reset_index()
+        df_sSP = df_SP.var(ddof=0).reset_index()
+        df_aSP[['ensvarS','ensvvoS','ensvvfS']] = df_sSP[['misfitS', 'voS', 'vfS']].values
+        df_aSP.loc[:, 'depth_S'] = df_aSP['depth_S'].values / intconvfac  
+    else:
+        df_aSP = init_df()
             
     df_EaVP = pd.concat([df_aTP, df_aSP])
 
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_EaVP.loc[:, 'depth_T'] = df_EaVP['depth_T'].values / intconvfac
-    df_EaVP.loc[:, 'depth_S'] = df_EaVP['depth_S'].values / intconvfac
     return df_EaVP
 
 def add_squared_error(df_VP):
     df_NU = df_VP.copy() 
-    misfitT = df_VP['misfitT'].values
-    misfitS = df_VP['misfitS'].values
-    
-    sqrerrT = np.square(misfitT)
-    sqrerrS = np.square(misfitS)
-    
-    df_NU['sqrerrT'] = sqrerrT
-    df_NU['sqrerrS'] = sqrerrS
-    
+    if ( 'misfitT' in df_VP.keys() ):
+        misfitT = df_VP['misfitT'].values
+        sqrerrT = np.square(misfitT)
+        df_NU['sqrerrT'] = sqrerrT
+    if ( 'misfitS' in df_VP.keys() ):
+        misfitS = df_VP['misfitS'].values
+        sqrerrS = np.square(misfitS)
+        df_NU['sqrerrS'] = sqrerrS
     return df_NU
 
 def add_crps_VP(df_EaVP, df_EnVP):
@@ -190,47 +208,58 @@ def add_crps_VP(df_EaVP, df_EnVP):
     return df_NU
         
 def calc_crps_VP(df_EnVP):
+    df_work = df_EnVP.copy()
 
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T']).astype(int)
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S']).astype(int)
+    if ( 'depth_T' in df_EnVP.keys() ):
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T']).astype(int)
+        df_TP = df_work.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['misfitT']]
+        CRPS_T = df_TP.apply(lambda x: calc_crps(x.values.flatten(),0)).rename('crpsT').reset_index()
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        CRPS_T.loc[:, 'depth_T'] = CRPS_T['depth_T'] / intconvfac
+    else:
+        CRPS_T = init_df()
+    if ( 'depth_S' in df_EnVP.keys() ):
+        df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S']).astype(int)
+        df_SP = df_work.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['misfitS']]
+        CRPS_S = df_SP.apply(lambda x: calc_crps(x.values.flatten(),0)).rename('crpsS').reset_index()
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        CRPS_S.loc[:, 'depth_S'] = CRPS_S['depth_S'] / intconvfac
+    else:
+        CRPS_S = init_df()
 
-    df_TP = df_EnVP.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['misfitT']]
-    df_SP = df_EnVP.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['misfitS']]
-    CRPS_T = df_TP.apply(lambda x: calc_crps(x.values.flatten(),0)).rename('crpsT').reset_index()
-    CRPS_S = df_SP.apply(lambda x: calc_crps(x.values.flatten(),0)).rename('crpsS').reset_index()
     df_crps = pd.concat([CRPS_T, CRPS_S])
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_crps.loc[:, 'depth_T'] = df_crps['depth_T'] / intconvfac
-    df_crps.loc[:, 'depth_S'] = df_crps['depth_S'] / intconvfac
     return df_crps
 
     
 def calc_crps_VPf(df_EnVP):
+    df_work = df_EnVP.copy()
 
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_T']), 'depth_T']).astype(int)
-    df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S'] = (intconvfac*df_EnVP.loc[np.isfinite(df_EnVP['depth_S']), 'depth_S']).astype(int)
-
-    df_TFO = df_EnVP.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['vfT', 'voT']]
-    CRPS_T = df_TFO.apply(lambda x: calc_crps(x.vfT, x.voT.mean())).rename('crpsT').reset_index()
-
-    df_SFO = df_EnVP.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['vfS', 'voS']]
-    CRPS_S = df_SFO.apply(lambda x: calc_crps(x.vfS, x.voS.mean())).rename('crpsS').reset_index()
+    if ( 'depth_T' in df_EnVP.keys() ):
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_T']), 'depth_T']).astype(int)
+        df_TFO = df_work.groupby(['lat', 'lon', 'depth_T', 'date'], as_index='False')[['vfT', 'voT']]
+        CRPS_T = df_TFO.apply(lambda x: calc_crps(x.vfT, x.voT.mean())).rename('crpsT').reset_index()
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        CRPS_T['depth_T'] = CRPS_T['depth_T'] / intconvfac
+    else:
+        CRPS_T = init_df()
+    if ( 'depth_S' in df_EnVP.keys() ):
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S'] = (intconvfac*df_work.loc[np.isfinite(df_work['depth_S']), 'depth_S']).astype(int)
+        df_SFO = df_work.groupby(['lat', 'lon', 'depth_S', 'date'], as_index='False')[['vfS', 'voS']]
+        CRPS_S = df_SFO.apply(lambda x: calc_crps(x.vfS, x.voS.mean())).rename('crpsS').reset_index()
+        # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
+        CRPS_S['depth_S'] = CRPS_S['depth_S'] / intconvfac
+    else:
+        CRPS_S = init_df()
 
     df_crps = pd.concat([CRPS_T, CRPS_S])
-
-    # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_crps['depth_T'] = df_crps['depth_T'] / intconvfac
-    df_crps['depth_S'] = df_crps['depth_S'] / intconvfac
-
     return df_crps
 
 def calc_crps(ens, obs):
     if ( isinstance(ens, np.ndarray) ):
         ens=ens.flatten()
-    #print('shape', ens.shape, obs)
-    #print('type', type(ens), type(obs))
     crps = ps.crps_ensemble(obs, ens)
     return(crps)
 
@@ -242,31 +271,41 @@ def average_over_depth(df_EaVP):
         df_T = df_EaVP[0]
         df_S = df_EaVP[1]
     else:
-        df_T = df_EaVP.loc[:,Tvars]
-        df_S = df_EaVP.loc[:,Svars]
+        if ( 'depth_T' in df_EaVP.keys() ):
+            df_T = df_EaVP.loc[:,Tvars]
+        else:
+            df_T = init_df()
+        if ( 'depth_T' in df_EaVP.keys() ):
+            df_S = df_EaVP.loc[:,Svars]
+        else:
+            df_S = init_df()
 
-    df_T.loc[np.isfinite(df_T.loc[:,'depth_T']), 'depth_T'] = (intconvfac*df_T.loc[np.isfinite(df_T.loc[:,'depth_T']), 'depth_T']).astype(int)
-    df_S.loc[np.isfinite(df_S.loc[:,'depth_S']), 'depth_S'] = (intconvfac*df_S.loc[np.isfinite(df_S.loc[:,'depth_S']), 'depth_S']).astype(int)
 
-    gl_sumT = df_T.groupby(['depth_T']).sum()
-    if ( not 'countT' in df_T.keys() ):
-        gl_cntT = df_T.groupby(['depth_T']).count()
-        gl_supT = pd.concat([gl_sumT, gl_cntT['misfitT'].rename('countT')],axis=1)
+    if ( 'depth_T' in df_T.keys() ):
+        df_T.loc[np.isfinite(df_T.loc[:,'depth_T']), 'depth_T'] = (intconvfac*df_T.loc[np.isfinite(df_T.loc[:,'depth_T']), 'depth_T']).astype(int)
+        gl_sumT = df_T.groupby(['depth_T']).sum()
+        if ( not 'countT' in df_T.keys() ):
+            gl_cntT = df_T.groupby(['depth_T']).count()
+            gl_supT = pd.concat([gl_sumT, gl_cntT['misfitT'].rename('countT')],axis=1)
+        else:
+            gl_supT = gl_sumT
+        gl_supT = gl_supT.reset_index()
+        gl_supT.loc[:, 'depth_T'] = gl_supT['depth_T'] / intconvfac
     else:
-        gl_supT = gl_sumT
+        gl_supT = init_series()
 
-    gl_sumS = df_S.groupby(['depth_S']).sum()
-    if ( not 'countS' in df_S.keys() ):
-        gl_cntS = df_S.groupby(['depth_S']).count()
-        gl_supS = pd.concat([gl_sumS, gl_cntS['misfitS'].rename('countS')],axis=1)
+    if ( 'depth_S' in df_S.keys() ):
+        df_S.loc[np.isfinite(df_S.loc[:,'depth_S']), 'depth_S'] = (intconvfac*df_S.loc[np.isfinite(df_S.loc[:,'depth_S']), 'depth_S']).astype(int)
+        gl_sumS = df_S.groupby(['depth_S']).sum()
+        if ( not 'countS' in df_S.keys() ):
+            gl_cntS = df_S.groupby(['depth_S']).count()
+            gl_supS = pd.concat([gl_sumS, gl_cntS['misfitS'].rename('countS')],axis=1)
+        else:
+            gl_supS = gl_sumS
+        gl_supS = gl_supS.reset_index()
+        gl_supS.loc[:, 'depth_S'] = gl_supS['depth_S'] / intconvfac
     else:
-        gl_supS = gl_sumS
-
-    gl_supT = gl_supT.reset_index()
-    gl_supS = gl_supS.reset_index()
-    
-    gl_supT.loc[:, 'depth_T'] = gl_supT['depth_T'] / intconvfac
-    gl_supS.loc[:, 'depth_S'] = gl_supS['depth_S'] / intconvfac
+        gl_supS = init_series()
 
     gl_series = [gl_supT.reset_index(), gl_supS.reset_index()]
     for gl_sup in gl_series:
@@ -275,12 +314,12 @@ def average_over_depth(df_EaVP):
 
     return gl_series
     
-def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5), mp_read=True):
+def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5), mp_read=True, subset=0):
     #mp_read = not mp   #  Need to find out how to run a child mp process inside another mp process.
     if ( deterministic ):
-        df_EnVP = read_deterministic_VP(expt, date, ddir=ddir )
+        df_EnVP = read_deterministic_VP(expt, date, ddir=ddir, subset=subset )
     else:
-        df_EnVP = read_ensemble_VP(expt, date, ddir=ddir, ens=ens, mp_read=mp_read)
+        df_EnVP = read_ensemble_VP(expt, date, ddir=ddir, ens=ens, mp_read=mp_read, subset=subset)
     df_EaVP = ensemble_average_VP(df_EnVP)
     df_EaVP = add_squared_error(df_EaVP)
     df_EaVP = add_crps_VP(df_EaVP, df_EnVP)
@@ -383,6 +422,10 @@ def sum_ongrid(df_EaVP, delta=DELTA):
 
 def init_df():
     df_nan = pd.DataFrame(np.nan, index=[], columns=[])
+    return df_nan
+
+def init_series():
+    df_nan = init_df().sum()
     return df_nan
 
 def init_dataframes():
@@ -504,7 +547,7 @@ def addto_vertical_array(idate, grgs_binv, grgs_series, depth, TTvars, SSvars):
                     grgs_binv[iseries][1][idate, ik, ikey] = dfLS[key].values
     return grgs_binv        
         
-def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5),  mp_date=False, mp_read=True):
+def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5),  mp_date=False, mp_read=True, subset=0):
     gl_series, rgs_series, bin_series = init_dataframes()
     depth = np.loadtxt('/home/kch001/scripts/SAM2_diagnostics/GIOPS/constants/GIOPS_depths')
     TTvars = Tvars.copy()
@@ -524,16 +567,16 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
         process_pool = multiprocessing.Pool(nproc)
         izip = list(zip(dates, itertools.repeat(expt)))
         #print(izip)
-        RTN_LIST = process_pool.starmap_async(partial(calc_errors_date, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=False), izip)
+        RTN_LIST = process_pool.starmap_async(partial(calc_errors_date, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=False, subset=subset), izip)
         process_pool.close()
         process_pool.join()
         ADD_RESULTS = RTN_LIST.get()
     else:     
        for idate,date in enumerate(dates):
-           ADD_RESULTS.append(calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read))
+           ADD_RESULTS.append(calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read, subset=subset))
     for idate, date in enumerate(dates):
        add_gl_series, add_rgs_series, add_bin_series = ADD_RESULTS[idate]
-       #add_gl_series, add_rgs_series, add_bin_series = calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read)   
+       #add_gl_series, add_rgs_series, add_bin_series = calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read, subset=subset)   
        gl_series, rgs_series, bin_series = addto_sums( ( gl_series, rgs_series, bin_series ), (add_gl_series, add_rgs_series, add_bin_series) )
        day_gl_series, day_rgs_series = apply_averaging(add_gl_series, add_rgs_series)
        grgs_binv = addto_vertical_array(idate, grgs_binv, [day_gl_series]+day_rgs_series, depth, TTvars, SSvars)
@@ -656,7 +699,9 @@ def plot_profiles(df_profiles, outpre='PLOTS/'):
         plot_profile(df_profiles[ifld], fld, outpre=outpre)
     return
         
-def plot_profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
+def profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
+    flabel = 'Temperature (\N{degree sign}C)'
+    if ( fld=='S'): flabel = 'Salinity (PSU)'
     dvar = 'depth_'+fld
     depth = df_profile[dvar].values
     
@@ -677,6 +722,8 @@ def plot_profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
     axe1.semilogy( stde, depth, linestyle=linestyle_tup['-..-..'], color='k', label='stde')
     axe1.invert_yaxis()
     axe1.legend()
+    axe1.set_xlabel(flabel)
+    axe1.set_ylabel('depth (m)')
     fig1.savefig(outpre+fld+'profile.png')
     plt.close(fig1)
     
@@ -689,6 +736,8 @@ def plot_profile(df_profile, fld='T', maxdepth=200, outpre='PLOTS/'):
     axe2.set_ylim([0, maxdepth])
     axe2.invert_yaxis()
     axe2.legend()
+    axe2.set_xlabel(flabel)
+    axe2.set_ylabel('depth (m)')
     mstr=str(maxdepth)
     fig2.savefig(outpre+fld+'profile_'+mstr+'m.png')
     plt.close(fig2)
@@ -701,6 +750,8 @@ def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', ma
     return
     
 def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False, nostdstat=False):
+    flabel = 'Temperature (\N{degree sign}C)'
+    if ( fld=='S'): flabel = 'Salinity (PSU)'
     nexpts = len(df_profile_list)
     title = fld+'-profile'
     dvar = 'depth_'+fld
@@ -788,6 +839,8 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
     axeL.add_artist(expt_legendL)
     axeL.add_artist(line_legendL)
     axeL.invert_yaxis()
+    axeL.set_xlabel(flabel)
+    axeL.set_ylabel('depth (m)')
     figL.savefig(outpre+fld+'profile.png')
     figL.savefig(outpre+fld+'profile.pdf')
     plt.close(figL)
@@ -800,8 +853,8 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
             locexpt='center right'
             locline='lower right'
         else:
-            locexpt='upper right'
-            locline='best'
+            locexpt='center'
+            locline='lower center'
             
         expt_legendD = axeD[iplot].legend(handles=expt_elements, loc=locexpt)
         line_legendD = axeD[iplot].legend(handles=line_elements, loc=locline)
@@ -810,6 +863,8 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
         axeD[iplot].add_artist(line_legendD)
         axeD[iplot].set_ylim([0, maxdepth])
         axeD[iplot].invert_yaxis()
+        axeD[iplot].set_xlabel(flabel)
+        axeD[iplot].set_ylabel('depth (m)')
         figD[iplot].savefig(outpre+fld+'profile_'+mstr+'m.png')
         figD[iplot].savefig(outpre+fld+'profile_'+mstr+'m.pdf')
         plt.close(figD[iplot])
@@ -859,7 +914,7 @@ def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
            LEVS = None
            cmap = cmap_posd
        outfile=outpre+varn+'.png'
-       print('TITLE', titpre, len(titpre))
+       #print('TITLE', titpre, len(titpre))
        if ( len(titpre) > 0 ):
            title=titpre+' '+varn
        else:
@@ -915,7 +970,7 @@ def plot_diff_field(bin1, bin2, drop=['ensvvo', 'ensvvf', 'vf', 'vo'], titpre=''
            varn='estd'+vari[6]
        cmap = cmap_posd
        LEVS = np.arange(-0.9, 1.1, 0.2)
-       print('TITLE', titpre, len(titpre))
+       #print('TITLE', titpre, len(titpre))
        if ( len(titpre) > 0 ):
            title=titpre+' '+varn
        else:
@@ -924,7 +979,7 @@ def plot_diff_field(bin1, bin2, drop=['ensvvo', 'ensvvf', 'vf', 'vo'], titpre=''
        cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
    return
 
-def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False):
+def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False, subset=0):
     deterministic = False
     #print(ens_passed)
     if ( ( isinstance(ens_passed, list) ) or ( isinstance(ens_passed, np.ndarray) ) ): ens = ens_passed
@@ -936,10 +991,10 @@ def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False
          else:
              ens=list(range(ens_passed))
                 
-    gl_series, rgs_series, bin_series, grgs_varray = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read, mp_date=mp_date)
+    gl_series, rgs_series, bin_series, grgs_varray = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read, mp_date=mp_date, subset=subset)
     return  expt, gl_series, rgs_series, bin_series, grgs_varray
      
-def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=True, mp_date=False):
+def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=True, mp_date=False, subset=0):
 
     print( "MP SETTINGS", mp_expt, mp_read )
     if ( mp_expt and mp_read ):
@@ -960,7 +1015,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         for iexpt, expt in enumerate(expts):
             ens_passed = enss[iexpt]
             dir_passed = ddirs[iexpt]
-            expt_rtn, gl_series, rgs_series, bin_series, grgs_varray = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date)
+            expt_rtn, gl_series, rgs_series, bin_series, grgs_varray = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, subset=subset)
             gl_list.append(gl_series)
             rgs_list.append(rgs_series)
             bin_list.append(bin_series)
@@ -971,7 +1026,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         process_pool = multiprocessing.Pool(nproc)
         izip = list(zip(itertools.repeat(dates), expts, enss, ddirs))
         #print(izip)
-        RTN_LIST = process_pool.starmap_async(partial(process_expt, mp_read=False, mp_date=False), izip)
+        RTN_LIST = process_pool.starmap_async(partial(process_expt, mp_read=False, mp_date=False, subset=subset), izip)
         process_pool.close()
         process_pool.join()
         FIN_LIST = RTN_LIST.get()
@@ -996,7 +1051,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         print("SORTED ", ( list(expt_list) == list(expts) ), expt_list, expts, sort_list, expt_copy )
     return gl_list, rgs_list, bin_list, grgs_list
 
-def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, outdirpre='', noensstat=False, nostdstat=False):
+def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, outdirpre='', noensstat=False, nostdstat=False, subset=0):
     if ( mp_expt and mp_read ):
         print('WARNING:  Multitasking within multitasking not working')
     if ( len(date_range) > 3 ):
@@ -1020,7 +1075,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     datestr0 = check_date.check_date(dates[0],  dtlen=8)
     datestr1 = check_date.check_date(dates[-1], dtlen=8)
     datestrr = datestr0 + '_' + datestr1
-    gl_list, rgs_list, bin_list, grgs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date)
+    gl_list, rgs_list, bin_list, grgs_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date, subset=subset)
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
     outpreoutg=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+'Global'+'_'
     plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat, nostdstat=nostdstat)
@@ -1037,7 +1092,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             binL = bin_list[iexpt][ilevel]
             outpreoutb=outdirpre+outdir[iexpt]+'/'+'Levels_'+datestrr+'_'+levstr+'_'
             titpre=labels[iexpt]+' '+datestrr+' '+levstr
-            print('TITLE', titpre, len(titpre))
+            #print('TITLE', titpre, len(titpre))
             plot_df_field(binL, titpre=titpre, outpre=outpreoutb)
             print("FINISHED FULL FIELD LEVEL : ", levstr, labels[iexpt])
             if ( iexpt == 0 ): 
@@ -1045,7 +1100,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             else:
                 odir=outdirpre+outdir[0]+'_'+outdir[iexpt]
                 titpre=labels[0]+'-'+labels[iexpt]+' '+datestrr+' '+levstr
-                print('TITLE', titpre, len(titpre))
+                #print('TITLE', titpre, len(titpre))
                 outpreoutb=odir+'/'+'Levels_'+datestrr+'_'+levstr+'_'
                 plot_diff_field(bin0, binL, titpre=titpre, outpre=outpreoutb)
                 print("FINISHED DIFF FIELD LEVEL : ", levstr, labels[iexpt])
@@ -1069,7 +1124,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
                 dfS_bin0 = dfS_binv
                 exp0 = expt
                 plotdiff=False
-            print(dfT_binv.shape, dfS_binv.shape)
+            #print(dfT_binv.shape, dfS_binv.shape)
             for iTS, binv in enumerate([dfT_binv, dfS_binv]):
                 bin0 = [dfT_bin0, dfS_bin0][iTS]
                 varslist = [Tvarslist, Svarslist][iTS]

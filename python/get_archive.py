@@ -24,7 +24,8 @@ def get_archive(destdir, branch, date, fcst_hour, ensnum=None, ext_string=None, 
         if ( isinstance(ensnum, type(None) ) ): 
             ext_string = str(fcst_hour).zfill(3)
             fil_string = ext_string
-        elif ( isinstance(ensnum, list) or isinstance(ensnum, np.ndarray) ):
+        elif ( isinstance(ensnum, list) or isinstance(ensnum, np.ndarray) or isinstance(ensnum, range) ):
+            if ( isinstance(ensnum, range) ): ensnum=list(ensnum)
             fil_string = str(fcst_hour).zfill(3)+'_'+'lst'
             for ie,ensmem in enumerate(ensnum):
                 if ( ie == 0 ):

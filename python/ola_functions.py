@@ -287,6 +287,7 @@ def VP_dataframe(input_file):
         lon = np.repeat(np.array(rga_VP[0, pr]), nlevels)
         lat = np.repeat(np.array(rga_VP[1, pr]), nlevels)
         date = np.repeat(np.array(rga_VP[2, pr]), nlevels) 
+        setID = np.repeat(np.array(iga_VP[8, pr]), nlevels)
         depth_T = dep[:nlevels, pr]
         depth_S = dep[nlevels:, pr]
         dic = OrderedDict([('lon', lon),
@@ -299,7 +300,8 @@ def VP_dataframe(input_file):
                            ('vfT', vf_T),
                            ('vfS', vf_S),
                            ('misfitT', dv_T),
-                           ('misfitS', dv_S)])
+                           ('misfitS', dv_S),
+                           ('setID', setID)])
         df = pd.DataFrame.from_dict(dic)
         del dic
         df_list.append(df)

@@ -7,7 +7,7 @@ import scipy.stats as ss
 import numpy as np
 import math
 
-plt.rc('text', usetex=False)
+#plt.rc('text', usetex=True)
 
 dmap = 'RdBu_r'
 dmap = 'seismic'
@@ -30,7 +30,7 @@ def make_projections(**kwargs):
 
 def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='PlateCarree', outfile='plt.png', 
                box=[-180, 180, -90, 90], make_global=False, title='', suptitle=None, 
-               cbar=True, obar='vertical', fontsizes=None, **kwargs):
+               cbar=True, obar='vertical', fontsizes=None, marks=None, **kwargs):
 
     title_fontsize = fontsizes
     cbar_fontsize = fontsizes
@@ -51,7 +51,7 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
         norm=None
     else:
         Ncolors=plt.get_cmap(cmap).N
-        norm = clr.BoundaryNorm(levels, ncolors=Ncolors, clip=True)
+        norm = clr.BoundaryNorm(levels, ncolors=Ncolors, clip=False, extend='both')
 
     if ( make_global ):
         ax.set_global()
@@ -60,11 +60,23 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
     if ( isinstance(norm, type(None) ) ):
         mesh = ax.pcolormesh(lon, lat, field, cmap=cmap,transform=pcarree)
     else:
-        mesh = ax.pcolormesh(lon, lat, field, norm=norm, cmap=cmap,transform=pcarree)
-    mesh.set_cmap(cmap)
+        mesh = ax.pcolormesh(lon, lat, field, norm=norm, cmap=cmap, transform=pcarree)
+    #mesh.set_cmap(cmap)
+    if ( marks ):
+        Xmark = marks[0]
+        Ymark = marks[1]
+        if ( len(marks) > 2 ): 
+           color=marks[2]
+        else:
+           color='k'
+        if ( len(marks) > 3 ): 
+           marker=marks[3]
+        else:
+           marker='o'
+        ax.plot( Xmark, Ymark, marker=marker, color=color, transform=pcarree)
     if ( cbar ): 
         #print('cbar', cbar_fontsize)
-        cbar_fig=fig.colorbar(mesh, format='%.2f',orientation=obar, ticks=ticks)
+        cbar_fig=fig.colorbar(mesh, format='%.3f',orientation=obar, ticks=ticks)
         cbar_fig.ax.tick_params(labelsize=cbar_fontsize)
     ax.coastlines()
     #print('title', title_fontsize)
@@ -162,6 +174,7 @@ def grd_pcolormesh(lon, lat, field, levels=None, ticks=None,
                    outfile='plt.png', box=[-180, 180, -90, 90], 
                    make_global=False, title='', suptitle=None, ddeg=0.5, 
                    cbar=True, interp_method='nearest', fontsizes=None,
+                   marks=None,
                    **kwargs
                    ):
 
@@ -169,20 +182,21 @@ def grd_pcolormesh(lon, lat, field, levels=None, ticks=None,
     if ( ( project == 'PacificCarree' ) or ( project == 'Percator' ) ): central_longitude=180.0
     grid_lon, grid_lat, grid_fld = grdfld(lon, lat, field, ddeg=ddeg, method=interp_method,central_longitude=central_longitude)
     pcolormesh(grid_lon, grid_lat, grid_fld, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=outfile, 
-               box=box, make_global=make_global, title=title, suptitle=suptitle, cbar=cbar, fontsizes=fontsizes, **kwargs)
+               box=box, make_global=make_global, title=title, suptitle=suptitle, cbar=cbar, fontsizes=fontsizes, marks=marks, **kwargs)
     return
     
 def bin_pcolormesh(lon, lat, field, levels=None, ticks=None, 
                    cmap=dmap, project='PlateCarree', 
                    outfile='plt.png', box=[-180, 180, -90, 90], 
                    make_global=False, title='',  suptitle=None, ddeg=2.0, cbar=True, obar='vertical', fontsizes=None,
+                   marks=None,
                    **kwargs
                    ):
 
     grid_lon, grid_lat, grid_fld = binfld(lon, lat, field, ddeg=ddeg)
     pcolormesh(grid_lon, grid_lat, grid_fld, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=outfile, 
                box=box, make_global=make_global, title=title, suptitle=suptitle, 
-               cbar=cbar, obar=obar,fontsizes=fontsizes,
+               cbar=cbar, obar=obar,fontsizes=fontsizes, marks=marks,
                **kwargs)
     return
    
@@ -198,6 +212,7 @@ def msk_grd_pcolormesh(lon, lat, field,  mask, levels=None, ticks=None,
                    outfile='plt.png', box=[-180, 180, -90, 90], 
                    make_global=False, title='', suptitle=None, ddeg=0.5, cbar=True, obar='vertical',
                    addmask=False, interp_method='nearest', fontsizes=None,
+                   marks=None,                   
                    **kwargs
                    ):
 
@@ -208,30 +223,32 @@ def msk_grd_pcolormesh(lon, lat, field,  mask, levels=None, ticks=None,
     grid_mlon, grid_mlat, grid_msk = grdfld(lon, lat, mask, ddeg=ddeg, method='nearest',central_longitude=central_longitude)  ## ONLY NEAREST NEIGHBOUR MAKES SENSE HERE?
     if ( not addmask ):
         pcolormesh(grid_lon, grid_lat, grid_fld, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=outfile, 
-                   box=box, make_global=make_global, title=title, suptitle=suptitle, cbar=cbar,
-                   obar=obar, fontsizes=fontsizes, **kwargs)
+                   box=box, make_global=make_global, title=title, suptitle=suptitle, cbar=cbar, 
+                   obar=obar, fontsizes=fontsizes, marks=marks, **kwargs)
     else:
         pcolormesh(grid_lon, grid_lat, np.ma.array(grid_fld, mask=np.logical_not(grid_msk)),
                    levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=outfile, 
                    box=box, make_global=make_global, title=title, suptitle=suptitle, cbar=cbar, 
-                   obar=obar, fontsizes=fontsizes,**kwargs)
+                   obar=obar, fontsizes=fontsizes, marks=marks, **kwargs)
     return
     
 def msk_bin_pcolormesh(lon, lat, field, mask, levels=None, ticks=None, 
                    cmap=dmap, project='PlateCarree', 
                    outfile='plt.png', box=[-180, 180, -90, 90], 
-                   make_global=False, title='', suptitle=None, ddeg=2.0, cbar=True, obar='vertial', fontsizes=None, **kwargs):
+                   make_global=False, title='', suptitle=None, ddeg=2.0, cbar=True, obar='vertial', fontsizes=None, 
+                   marks=None,
+                   **kwargs):
 
     mask_lon, mask_lat, mask_fld = mask_field(lon, lat, field, mask)
     grid_lon, grid_lat, grid_fld = binfld(mask_lon, mask_lat, mask_fld, ddeg=ddeg)
     pcolormesh(grid_lon, grid_lat, grid_fld, levels=levels, ticks=ticks, cmap=cmap, project=project, 
                outfile=outfile, box=box, make_global=make_global, title=title, suptitle=suptitle, 
-               cbar=cbar,obar=obar, fontsizes=fontsizes, **kwargs)
+               cbar=cbar,obar=obar, fontsizes=fontsizes, marks=marks, **kwargs)
     return
    
 def quiver(lon, lat, ufield, vfield, levels=None, cmap=dmap, project='PlateCarree', outfile='plt.png', 
            box=[-180, 180, -90, 90], make_global=False, title='', suptitle=None, 
-           cbar=True, obar='vertical', Nskip=1,**kwargs):
+           cbar=True, obar='vertical', Nskip=1, **kwargs):
 
     projections,pcarree = make_projections(**kwargs)
 
@@ -305,6 +322,68 @@ def scatter(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='PlateC
         cbar_fig=fig.colorbar(scat, format='%.2f',orientation=obar, ticks=ticks)
         cbar_fig.ax.tick_params(labelsize=cbar_fontsize)
     ax.coastlines()
+    #print('title', title_fontsize)
+    if ( suptitle != None ): fig.suptitle(suptitle, fontsize=title_fontsize)
+    ax.set_title(title, fontsize=title_fontsize)
+    if ( isinstance(outfile, str) ):  outfile_list = [ outfile ]
+    if ( isinstance(outfile, list) ): outfile_list = outfile
+    for ofile in outfile_list:
+        fig.savefig(ofile,bbox_inches='tight')
+    plt.close(fig)
+    return
+
+def scatterdots(FIELDS, labels=None, levels=None, project='PlateCarree', outfile='plt.png', 
+               box=[-180, 180, -90, 90], make_global=True, title='', suptitle=None, 
+               fontsizes=None, scalefactor=100.0, units='', scale_factor=1.0, legend_title=['', ''], **kwargs):
+
+    if ( isinstance(labels,type(None) ) ): labels=['']*len(FIELDS)
+    if ( len(labels) < len(FIELDS) ): labels=labels+[labels[0]]*(len(FIELDS)-len(labels))
+    title_fontsize = fontsizes
+    cbar_fontsize = fontsizes
+    fontsize=None
+    if ( isinstance(fontsizes, int) or isinstance(fontsizes, float) ):
+        fontsize=fontsizes
+    if ( not isinstance(fontsizes, type(None)) ):
+        if ( len(fontsizes) == 2 ):
+            title_fontsize = fontsizes[0]
+            cbar_fontsize = fontsizes[1]
+            fontsize=fontsizes[0]
+    #print(fontsize, title_fontsize, cbar_fontsize)
+    fig = plt.figure()
+    projections, pcarree = make_projections(**kwargs)
+    ax = plt.subplot(projection=projections[project])
+
+    if ( make_global ):
+        ax.set_global()
+    else:
+        ax.set_extent(box, crs=ccrs.PlateCarree())
+
+    colors=['b', 'r', 'g', 'c', 'm']
+    scatlist = []
+    for ifield, FIELD in enumerate(FIELDS):
+        if ( len(FIELD) == 4 ):
+            (lon, lat, values, color) = FIELD
+        else:
+            (lon, lat, values) = FIELD
+            color=colors[ifield%5]
+        scaled_values = scale_factor * values
+            
+        scat = ax.scatter(x=lon.flatten(), y=lat.flatten(), s=scaled_values.flatten(), c=color, marker='c', alpha=0.5, transform=ccrs.PlateCarree(), label=labels[ifield]) ## Important
+        scatlist.append(scat)
+    ax.coastlines()
+
+    # produce a legend with a cross-section of sizes from the scatter
+    kw = dict(prop="sizes", num=np.arange(0.5,2,0.5), fmt="{x:.2f} "+units, func=lambda s: s/scale_factor)
+    kw = dict(prop="sizes", num=[1], fmt="{x:.2f} "+units, func=lambda s: s/scale_factor)
+    handles, labels = scatlist[0].legend_elements(**kw)
+    legend2 = ax.legend(handles, labels, loc="upper right", title=legend_title[1])
+    ax.add_artist(legend2)
+
+    # produce a legend with the unique colors from the scatter
+    handle, labels = scat.legend_elements()
+    legend1 = ax.legend(loc="lower left", title=legend_title[0])
+    #ax.add_artist(legend1)
+
     #print('title', title_fontsize)
     if ( suptitle != None ): fig.suptitle(suptitle, fontsize=title_fontsize)
     ax.set_title(title, fontsize=title_fontsize)

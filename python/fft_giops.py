@@ -22,6 +22,7 @@ mdir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
 import scipy.interpolate
 import scipy.stats
 import scipy.signal
+import scipy.fft as spyfft
 import matplotlib.pyplot as plt
 
 addpath='/fs/homeu1/eccc/mrd/ords/rpnenv/dpe000/CIOPS/analysis/Ensemble_CIOPS_analysis/python'
@@ -310,10 +311,15 @@ def interpolate_to_boxes_slow(FLD, LL_mod, LL_BOXES, method='nearest', missing=-
     return FLD_BOXES
         
 def get_fft_ps(GRID):
-    FFT = np.fft.fft2(GRID)
+    FFT = np.fft.fft2(GRID, norm='forward')
     PSD = get_psd(FFT)
     return PSD, FFT
-    
+
+def get_cfft_ps(GRID):
+    FFT = spyfft.dctn(uu,norm='forward')  # LS/SYED use 'ortho' but then divide by sqrt(N) -- same thing!
+    PSD = get_psdr(FFT)
+    return  
+      
 def get_welch_psd(GRID):
     nx, ny = GRID.shape
     kw, psd_x = scipy.signal.welch(GRID, 1, axis=1, window='hann')
@@ -327,12 +333,15 @@ def get_psd(FFT):
     PSD = np.abs( FFT * np.conj(FFT) )
     return PSD
 
+def get_psdr(FFT):
+    PSD = np.abs( FFT * FFT )
+    return PSD
+
 def find_wavenumber_norm(N, grid_step):
     wavenumber = np.fft.fftfreq(N, grid_step)
     K2D = np.meshgrid(wavenumber, wavenumber)
     knorm = np.sqrt(K2D[0]**2 +K2D[1]**2)
     return knorm, wavenumber
-
 
 def find_wavenumber(N, grid_step):
     wavenumber = np.fft.fftfreq(N, grid_step)

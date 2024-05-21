@@ -1,7 +1,7 @@
 #from importlib import reload
 import sys
 import os
-sys.path.insert(0, '/home/dpe000/EnGIOPS/python_drew')
+sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
 import datetime
 import numpy as np
 import pandas as pd
@@ -193,6 +193,7 @@ def rank_over_range(expt, dates, obstype='DS', enslist=ens_list, datadir=site5, 
 
 def plot_histogram(hist_np, title, pfile):
     if ( isinstance(hist_np, pd.core.frame.DataFrame) ): hist_np = hist_np.to_numpy()
+    if ( isinstance(hist_np, pd.core.series.Series) ): hist_np = hist_np[0]
     if ( isinstance(hist_np, list) ): hist_np = np.array(hist_np).astype(float)
     fig=plt.figure()
     axe=plt.subplot()

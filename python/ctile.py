@@ -9,6 +9,7 @@ import matplotlib as mpl
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
+import matplotlib.cm as cm
 import cartopy.crs as ccrs
 
 import sys
@@ -70,7 +71,7 @@ def simple_test(BOXES, project='PlateCarree'):
     plt.close(fig)
     return
 
-def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None):
+def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None, alpha=0.65):
     if ( isinstance(SCALE, type(None)) ):
        smin = 0
        smax = max(COLORS)
@@ -83,16 +84,17 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     fig = plt.figure()
     ax = plt.subplot(projection=ccrs.PlateCarree())
     plt.set_cmap(cmap)
-    colormap = mpl.cm.get_cmap()
+    colormap = cm.get_cmap()
     norm = mpl.colors.Normalize(vmin=smin, vmax=smax)
     for ibox, BOX in enumerate(BOXES):
         polygon = sgeometry.Polygon(BOX)
         rgba=colormap(norm(COLORS[ibox]))
-        ax.add_geometries([polygon], crs=ccrs.PlateCarree().as_geodetic(), fc=rgba, ec="red", alpha=0.65)
+        ax.add_geometries([polygon], crs=ccrs.PlateCarree().as_geodetic(), fc=rgba, ec="red", alpha=alpha)
 
-    sm = mpl.cm.ScalarMappable(cmap=colormap)
+    sm = cm.ScalarMappable(cmap=colormap)
     #sm._A = COLORS
     sm.set_clim(vmin=smin, vmax=smax)
+    #sm.set_clim(norm=norm)
     #print('colorbar', smin, smax, sm._A)
     cb = fig.colorbar(sm, ax=ax, orientation='horizontal')
     if ( not isinstance(ticks, type(None)) ):
@@ -104,8 +106,9 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     return
 
 def test():
+    cmap_test = cm.get_cmap('YlGnBu', 10)
     BOXES, GRIDS, LATS = create_BOXES()
     COLORS = 100 * np.random.rand(len(BOXES))
     tile_patches(BOXES, COLORS, cmap='seismic', project='PlateCarree', outfile='pile.png')
-    cplot_tiles(BOXES, COLORS, SCALE=100, cmap='seismic', project='PlateCarree', outfile='tile.png')
+    cplot_tiles(BOXES, COLORS, SCALE=100, cmap=cmap_test, project='PlateCarree', outfile='tile.png', alpha=1.0)
     return

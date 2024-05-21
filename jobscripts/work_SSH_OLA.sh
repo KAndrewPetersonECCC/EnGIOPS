@@ -17,11 +17,13 @@ import matplotlib.pyplot as plt
 mpl.use('Agg')
 import numpy as np
 import datetime
+import subprocess
 import read_DF_VP
 import rank_histogram
 import read_DF_IS
 
 dates = rank_histogram.create_dates(20210602, 20220525, 7)
+#dates = rank_histogram.create_dates(20210602, 20210630, 7)
 expts=('GIOPS_T', 'GIOPS_330_GD', 'GIOPS_T')
 labels=('Ensemble', 'Operation', 'Control')
 enss=(21, 0, 1)
@@ -31,5 +33,16 @@ outdir=['GIOPS_T', 'GIOPS_330_GD', 'GIOPS_T0']
 LEV1 = np.arange(0, 0.16, 0.01)
 LEV2 = np.arange(-0.095, 0.1, 0.01)
 LEV3 = np.arange(-0.045, 0.05, 0.01)
-read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre='ECMP_', NP=20, LEV_posd=LEV1, LEV_anom=LEV2, LEV_diff=LEV3)
+LEV4 = np.arange(0, 0.051, 0.005)
+dsite5='/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/'
+outdirpre=dsite5+'ECMP_'
+outdirprf=dsite5+'ECMQ_'
+
+for odir in outdir:
+    subprocess.call(['mkdir', outdirpre+odir])
+    subprocess.call(['ln', '-s', outdirpre+odir, './'])
+   
+read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirprf, NP=20, LEV_posd=LEV4, LEV_anom=LEV2, LEV_diff=LEV3)
+read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre, NP=20, LEV_posd=LEV1, LEV_anom=LEV2, LEV_diff=LEV3)
+
 EOD

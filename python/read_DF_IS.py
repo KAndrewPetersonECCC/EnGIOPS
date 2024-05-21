@@ -17,6 +17,7 @@ import matplotlib.colors as clr
 import matplotlib.dates as mdates
 import matplotlib.cm as cm
 import subprocess
+import traceback
 
 import ola_functions
 import read_DF_VP
@@ -29,6 +30,7 @@ import copy
 
 import ensemble_functions
 import rank_histogram
+import create_pdf
 
 num_cpus = len(os.sched_getaffinity(0))
 intconvfac=10000.0
@@ -37,13 +39,13 @@ if not os.path.isfile(test_file):
     print("WARNING: TEST FILE NOT PRESENT")
 
 cmap_anom = copy.copy(cm.seismic)
-cmap_anom.set_bad('g', 1.0)
+cmap_anom.set_bad('grey', 1.0)
 
 cmap_zero = copy.copy(cm.RdYlBu_r)
-cmap_zero.set_bad('g', 1.0)
+cmap_zero.set_bad('grey', 1.0)
 
-cmap_posd = copy.copy(cm.gist_stern_r)
-cmap_posd.set_bad('g', 1.0)
+cmap_posd = copy.copy(cm.viridis_r)
+cmap_posd.set_bad('grey', 1.0)
 
 cmap_ones = copy.copy(cm.hsv)
 
@@ -114,7 +116,8 @@ def read_deterministic_SSH(expt, date, ddir=get_mdir(5), check_duplicate=True, S
 
 def ensemble_average_SSH(df_EnSSH, count=21):
     # make depth_T and depth_S integers: So groupby doesn't depend on matching floats!
-    df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt'], as_index='False')[['obs', 'mod', 'ana', 'misfit', 'setID', 'oerr', 'TrackNum', 'QC']]
+    time0 = time.time()
+    df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt', 'TrackNum'], as_index='False')[['obs', 'mod', 'ana', 'misfit', 'oerr']]
     df_CNT = df_SSH.count()
     LT = len(df_CNT[df_CNT['misfit'] < count ])     
     print('Number of SubEnsembles = ', LT)    
@@ -122,9 +125,9 @@ def ensemble_average_SSH(df_EnSSH, count=21):
     if ( NT > 0 ):
         print("WARNING:  Too many Ensemble Members")
         print(NT)
-    df_EaSSH = df_SSH.mean().reset_index()
-    df_varSSH = df_SSH.var(ddof=0).reset_index()
-    df_EaSSH[['ensvar','varobs','varmod', 'varana']] = df_varSSH[['misfit', 'obs', 'mod', 'ana']].to_numpy()   
+    df_EaSSH = df_SSH.mean()
+    df_varSSH = df_SSH.var(ddof=0).rename(columns={'misfit':'ensvar', 'obs': 'varobs', 'mod' : 'varmod', 'ana' : 'varana'})
+    df_EaSSH = pd.concat([df_EaSSH, df_varSSH[['ensvar', 'varobs', 'varmod', 'varana']]], axis=1).reset_index()
     return df_EaSSH
 
 def add_squared_error(df_SSH):
@@ -134,6 +137,13 @@ def add_squared_error(df_SSH):
     df_NU['sqrerr'] = sqrerr
     return df_NU
 
+def add_adjust_error(df_SSH):
+    df_NU = df_SSH.copy() 
+    sqrerr = df_SSH['sqrerr'].to_numpy()
+    obserr = df_SSH['oerr'].to_numpy()
+    adjerr = sqrerr - np.square(obserr)
+    df_NU['adjerr'] = adjerr
+    return df_NU
 
 def add_crps_SSH(df_EaSSH, df_EnSSH):
     df_crps = calc_crps_SSH(df_EnSSH)
@@ -142,7 +152,8 @@ def add_crps_SSH(df_EaSSH, df_EnSSH):
         
 def add_rank_SSH(df_EaSSH, df_EnSSH, nens=21):
     df_rank = calc_rank_SSH(df_EnSSH, nens=nens)
-    df_NU = pd.concat([df_EaSSH, df_rank['rank', 'size']],axis=1)
+    df_NU = pd.concat([df_EaSSH, df_rank[['rank', 'size']]],axis=1)
+    #print(df_NU.keys())
     return df_NU
 
 def calc_crps_SSH(df_EnSSH):
@@ -158,39 +169,44 @@ def calc_crps_SSHf(df_EnSSH):
 
 def calc_rank_SSH(df_EnSSH, nens=21):
     df_rank = ensemble_functions.dataframe_rank( df_EnSSH, 'misfit', ['Lat', 'Lon', 'tt'], ncount=nens, rmsub=False)
-    #df_SSH = df_EnSSH.groupby(['Lat', 'Lon', 'tt'], as_index='False')[['misfit']]
-    #df_rank = df_SSH.apply(lambda x:  ensemble_functions.rank(x.to_numpy().flatten()) ).rename('rank').reset_index()
-    #df_CNT = df_SSH.count().rename('size').reset_index()
-    #df_rank = pd.concat([df_rank, df_CNT], axis=1)
-    #df_hist = ensemble_functions.dataframe_hist( df_rank, ncount=nens )
     return df_rank
     
 def sum_rank(df_EaSSH, nens=21):
-    df_rank = df_EaSSH['rank', 'size']
-    df_esub = df_rank[df_rank['size'] != nens ]
+    #print(df_EaSSH.keys())
+    df_rank = df_EaSSH[['rank', 'size']]
+    df_esub = df_rank[df_rank['size'] == nens ]
     df_hist = ensemble_functions.dataframe_hist( df_esub, ncount=nens)
-    df_sumh = df_esub['hist'].sum()
-    count = df_esub['hist'].count()
+    df_sumh = df_hist[['hist']].sum()   # Note the ['hist'] : Keeps it a dataframe.  Sum() reduces it to series.
+    count = df_esub['rank'].count()
     df_sumh['hcount'] = count
+    #print(df_sumh, type(df_sumh))
     return df_sumh
 
 def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5), mp_read=True, SAT='ALL'):
     #mp_read = not mp   #  Need to find out how to run a child mp process inside another mp process.
+    time0 = time.time()
+    print('ENTERING CALC ERRORS for date', date, time.strftime("%Y%m%d--%H:%M:%S", time.gmtime()))
     if ( deterministic ):
         df_EnSSH = read_deterministic_SSH(expt, date, ddir=ddir, SAT=SAT)
         nens=1
     else:
         df_EnSSH = read_ensemble_SSH(expt, date, ddir=ddir, ens=ens, mp_read=mp_read, SAT=SAT)
         nens=len(ens)
-    df_EaSSH = ensemble_average_SSH(df_EnSSH)
+    df_EaSSH = ensemble_average_SSH(df_EnSSH, count=nens)
     df_EaSSH = add_squared_error(df_EaSSH)
+    df_EaSSH = add_adjust_error(df_EaSSH)
     df_EaSSH = add_crps_SSH(df_EaSSH, df_EnSSH)
     df_EaSSH = add_rank_SSH(df_EaSSH, df_EnSSH, nens=nens)
-    gl_series=summed_field(df_EaSSH)
-    hist_series = sum_rank(df_EaSSH, nens=nens)
-    rgs_series = calc_region_errors(df_EaSSH)
-    bin_series = sum_ongrid(df_EaSSH)
-    return gl_series, rgs_series, bin_series, hist_series
+    gl_df =summed_field(df_EaSSH)
+    hist_df = sum_rank(df_EaSSH, nens=nens)
+    rgs_df = calc_region_errors(df_EaSSH)
+    bin_df = sum_ongrid(df_EaSSH)
+    pdf_df = calc_pdf(df_EnSSH[['misfit']])   # calc_pdf(df_column, brange=def_brange_err, Nbins=Nbins_PDF):
+    pd2_ls = calc_2dpdf(df_EaSSH, var_err='misfit', var_spr='ensvar') # calc_2dpdf(df_column, var_err='misfit', var_spr='ensvar', brange_err=[-5,5], brange_spr=[0,5], Nbins=100)
+    time1 = time.time()
+    print('EXITING CALC ERRORS for date', date, time1-time0, time.strftime("%Y%m%d--%H:%M:%S", time.gmtime()), flush=True)
+    
+    return gl_df, rgs_df, bin_df, hist_df, pdf_df, pd2_ls
     
 
 def average_field(df_EaSSH):
@@ -236,21 +252,75 @@ def sum_ongrid(df_EaSSH, delta=DELTA):
     return df_sup
 
 
+Nbins_PDF = 100
+def_brange_err = [-1,1]
+def_brange_spr = [0, 1]  
+def init_pdf(brange, vars, Nbins=Nbins_PDF):
+    # REALLY ONLY WORKS FOR GROUP OF ZERO CENTERED FIELDS? 
+    time0 = time.time()
+    bin_edge = create_pdf.init_bins(brange, Nbins)
+    bin_mids = create_pdf.calc_bin_mid(bin_edge)
+    binned_field = read_DF_VP.init_df()
+    bins = create_pdf.zero_bins(bin_edge)
+    #binned_field['bins'] = bin_mids
+    for var in vars:
+        binned_field = pd.concat([binned_field, pd.DataFrame(data={var: bins.copy()})])
+    if ( isinstance(binned_field, pd.core.series.Series) ): binned_field=binned_field.to_frame()
+    return binned_field, bin_edge
+
+def calc_pdf(df_column, brange=def_brange_err, Nbins=Nbins_PDF):
+    time0 = time.time()
+    bin_keys = df_column.keys()
+    binned_field, bin_edge = init_pdf(brange, bin_keys, Nbins=Nbins)
+    print('LEN', len(binned_field), len(bin_edge))
+    bin_mids = create_pdf.calc_bin_mid(bin_edge)
+    binned_field['bins'] = bin_mids
+    for ibin, bin_key in enumerate(bin_keys):
+        tobin = df_column[bin_key].to_numpy()
+        bina, nadd = create_pdf.bin_values(tobin, bin_edge)
+        if ( ibin == 0 ): 
+            nadd_zero = nadd
+        else:
+            if ( nadd != nadd_zero ):  print("WARNING:  DIFFERING data size??")
+        binned_field[bin_key] = bina
+    binned_field['count'] = nadd_zero
+    return binned_field
+        
+def init2d_pdf(brange_err=def_brange_err, brange_spr=def_brange_spr, Nbins=Nbins_PDF):
+    # REALLY ONLY WORKS FOR GROUP OF ZERO CENTERED FIELDS? 
+    bin_edge_err = create_pdf.init_bins(brange_err, 2*Nbins)
+    bin_edge_spr = create_pdf.init_bins(brange_err, Nbins)
+    binned_field = read_DF_VP.init_df()
+    bins = create_pdf.zero_2Dbins(bin_edge_err, bin_edge_spr)
+    binned_field = [bins.copy(), 0]
+    return binned_field, bin_edge_err, bin_edge_spr
+    
+def calc_2dpdf(df_column, var_err='misfit', var_spr='ensvar', brange_err=def_brange_err, brange_spr=def_brange_spr, Nbins=Nbins_PDF):
+    misfit = df_column[var_err].to_numpy()
+    spread = np.sqrt(df_column[var_spr].to_numpy())
+    # binned_field is a list
+    binned_field, bin_edge_err, bin_edge_spr = init2d_pdf(brange_err, brange_spr, Nbins)
+    # binned_field is a list 
+    binned_field = create_pdf.bin2D_values(misfit, spread,  bin_edge_err, bin_edge_spr)
+    return binned_field  # Note binned_field is actually a tuple (binned_field, nadd)
+
 def init_dataframes():
     gl_series = read_DF_VP.init_df()
     bin_series = read_DF_VP.init_df()
+    hist_series = read_DF_VP.init_df()
     rgs_series = []
     for region in  read_DF_VP.PAREAS.keys():
         rg_sup = read_DF_VP.init_df()
         rgs_series.append(rg_sup)
-    return gl_series, rgs_series, bin_series
-
-
+    return gl_series, rgs_series, bin_series, hist_series
 
 def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir=get_mdir(5),  mp_date=True,  mp_read=False, SAT='ALL', NP=20):
     print('ENTERING CYCLE THRU DATES', 'mp_date='+str(mp_date), 'mp_read='+str(mp_read), flush=True)
-    gl_series, rgs_series, bin_series = init_dataframes()
-    SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
+    gl_series, rgs_series, bin_series, hist_series = init_dataframes()
+    pdf_series, bin_edge = init_pdf( def_brange_err, ['misfit'], Nbins_PDF)
+    print('PDF INIT', pdf_series['misfit'])
+    pd2_series, bin_edge_err, bin_edge_spr = init2d_pdf(def_brange_err, def_brange_spr, Nbins_PDF)
+    SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'adjerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
     SSHaxis = ['Lat', 'Lon', 'tt']
     nvar = len(SSHvars)
     ntim = len(dates)
@@ -283,33 +353,47 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
            print("SINGLE DATE TIME", time.time() - time0, flush=True)
     print("ALL DATE TIME", time.time() - time00, flush=True)
     for idate, date in enumerate(dates):
-       add_gl_series, add_rgs_series, add_bin_series, add_hist_series = ADD_RESULTS[idate]
-       gl_series, rgs_series, bin_series, hist_series = addto_sums( ( gl_series, rgs_series, bin_series ), (add_gl_series, add_rgs_series, add_bin_series) )
+       add_gl_series, add_rgs_series, add_bin_series, add_hist_series, add_pdf_series, add_pd2_series = ADD_RESULTS[idate]
+       OLD = ( gl_series, rgs_series, bin_series, hist_series, pdf_series, pd2_series )
+       ADD = (add_gl_series, add_rgs_series, add_bin_series, add_hist_series, add_pdf_series, add_pd2_series)
+       gl_series, rgs_series, bin_series, hist_series, pdf_series, pd2_series = addto_sums( OLD, ADD )
        day_gl_series, day_rgs_series = apply_averaging(add_gl_series, add_rgs_series)
        tglrs_series = addto_tlist(idate, tglrs_series, [day_gl_series]+day_rgs_series, SSHvars)
 
     # Apply Final Averaging on area averages
     gl_series_avg, rgs_series_avg = apply_averaging(gl_series, rgs_series, count_name='count', coord_list=SSHaxis)
     hist_series_avg = final_mean(hist_series, 'hcount', coord_list=[])
+    # CHECK
+    print( 'HISTOGRAM NORM', np.sum(hist_series_avg['hist'].to_numpy()[0]))
+    print( 'HISTOGRAM', hist_series_avg['hist'].to_numpy()[0])
+    print( 'HISTOGRAM TYPE', type( hist_series_avg['hist'].to_numpy()[0]))
+    print( 'HISTOGRAM SHAPE', hist_series_avg['hist'].to_numpy()[0].shape)
+    pdf_series_avg = final_mean(pdf_series, 'count', coord_list=['bins'])
+    print('PDF FINAL', pdf_series_avg['misfit'])
+    pd2_series_avg = pd2_series[0]/pd2_series[1]
+    print('1 == PDF2 SUM = ', np.sum(pd2_series_avg) )
+    print('PDF2 row', np.sum(pd2_series_avg, axis=0) )
+    print('PDF2 col', np.sum(pd2_series_avg, axis=1) )
+    IMAX = np.where( pd2_series_avg == np.max(pd2_series_avg) )
+    IALL = np.where( pd2_series_avg != np.max(pd2_series_avg) )
+    print('PDF2 off', np.sum(pd2_series_avg[IALL]), np.max(pd2_series_avg[IALL]), np.min(pd2_series_avg[IALL]))
+    #pd2_series_avg = final_mean(pd2_series, 'count', coord_list=[])
     
     # Subset bin_series to Levels
     bin_series_avg = apply_bin_averaging(bin_series, count_name='count', llvars=['lon_bin', 'lat_bin'], extra=['tt'])
     bin_series_avg = add_ratio(bin_series_avg)
     tglrs_series = add_ratio(tglrs_series)
     print("FINAL DATE TIME", time.time() - time00, flush=True)
-    return gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg
+    return gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg, pdf_series_avg, pd2_series_avg
 
 def add_ratio(df):
-    print('MAIN TYPE', type(df) )
     if ( isinstance(df, list) ):
-      print('SECONDARY TYPE', type(df[0]))
       if ( isinstance(df[0], pd.core.frame.DataFrame) or isinstance(df[0], pd.core.series.Series) or isinstance(df[0], list) ):
         df_list = []
         for dfe in df:
             dfn = add_ratio(dfe)
             df_list.append(dfn)
         return df_list
-    print('TYPE', type(df))
     if ( isinstance(df, pd.core.frame.DataFrame) ):
         oberr = np.square(df['oerr'].to_numpy())
         sqerr = df['sqrerr'].to_numpy()
@@ -326,7 +410,6 @@ def add_ratio(df):
         print('UNKNOWN', type(df))
         # Do Nothing for Now
         return df
-    print('TYPE LW', type(lwerr))
     if ( isinstance(lwerr, np.ndarray) ):
         #lwerr[ np.where(lwerr < 0 ) ] = 0.0
         ipos = np.where(envar > 0 )
@@ -352,32 +435,65 @@ def add_ratio(df):
     df['ratip'] = ratip
     return df
     
+def series_to_df(df_series):
+    df_frame = read_DF_VP.init_df()
+    for key in df_series.keys():
+        df_frame[key] = [df_series[key]]
+    return df_frame
 
+def addto_df( df_old, df_add):
+    if ( isinstance(df_old, list) or isinstance(df_old, tuple) ):
+        df_new = []
+        for ilist, dfdf_old in enumerate(df_old):
+            dfdf_add = df_add[ilist]
+            dfdf_new = addto_df(dfdf_old, dfdf_add)
+            df_new.append(dfdf_new)
+        return df_new
+    if ( isinstance(df_add, pd.core.series.Series) ): df_add = series_to_df(df_add)
+    df_sum = pd.concat([df_old, df_add], axis=0).sum(axis=0)
+    df_new = series_to_df(df_sum)
+    print('ADDTO_DF', df_new)
+    print('ADDTO_DF', type(df_new), type(df_sum))
+    if ( isinstance(df_new, pd.core.frame.DataFrame) or isinstance(df_new, pd.core.series.Series) ): print('ADDTO_DF', df_new.keys())
+    return df_new
+    
 def addto_sums( old_sums, add_sums):
-    gl_series, rgs_series, bin_series, hist_series = old_sums
-    add_gl_series, add_rgs_series, add_bin_series, add_hist_series = add_sums
-        
-    gl_new = pd.concat([gl_series, add_gl_series], axis=1).sum(axis=1)
-    hist_new = pd.concat([hist_series, add_hist_series], axis=1).sum(axis=1)
-    #print(gl_new['count'])
-                
+    # Not sure why I want a module to do this.
+    #
+    gl_series, rgs_series, bin_series, hist_series, pdf_series, pd2_series = old_sums
+    add_gl_series, add_rgs_series, add_bin_series, add_hist_series, add_pdf_series, add_pd2_series = add_sums
+    
+    # A TUPLE of one NUMPY ARRAY and one integer IS HANDLED ONE WAY
+    pd2_new = [ pd2_series[ii] + add_pd2_series[ii] for ii in range(len(pd2_series)) ] 
+
+    # DATAFRAMES NEED TO BE HANDLED ANOTHER WAY
+    (gl_new, hist_new) = addto_df((gl_series, hist_series), (add_gl_series, add_hist_series))
+    
+    # AND A LIST OF DATAFRAMES YET ANOTHER WAY            
     new_rgs_series = []
-    for ir, rg_series in enumerate(rgs_series):
-        add_rg_series = add_rgs_series[ir]
-        rg_new = pd.concat([rg_series, add_rg_series], axis=1).sum(axis=1)
-        #print(rg_new['count'])
-        new_rgs_series.append(rg_new)
+    new_rgs_series = addto_df(rgs_series, add_rgs_series)
         
+    # AND A BINNED DATAFRAME STILL ANOTHER WAY.         
     gr_cat = pd.concat([bin_series, add_bin_series])
     gr_new = gr_cat.groupby(['lat_bin', 'lon_bin']).sum().reset_index()
+
+    # AND ANOTHER BINNED DATAFRAME STILL ANOTHER
+    pdf_cat = pd.concat([pdf_series, add_pdf_series])
+    pdf_new = pdf_cat.groupby(['bins']).sum().reset_index()
+    print('PDF ADD', pdf_new)
+
+    print("ADDTO SUMS TYPES", type(gl_new), type(new_rgs_series), type(new_rgs_series[0]), type(gl_new), type(hist_new), type(pdf_new), type(pd2_new))
         
-    return gl_new, new_rgs_series, gr_new, hist_new  
+    return gl_new, new_rgs_series, gr_new, hist_new, pdf_new, pd2_new
 
 
 def final_mean( df_sum, count_name, coord_list ):
    df_avg = df_sum.copy()
    keys = df_avg.keys()
-   keys = keys.drop(coord_list)
+   print('FINAL MEAN KEYS', keys, type(df_sum))
+   for akey in coord_list:
+       if ( akey in keys ):
+           keys = keys.drop(akey)
    
    for key in keys:
        if ( key != count_name ):
@@ -442,8 +558,8 @@ def process_expt(dates, expt, ens_passed, this_ddir, mp_read=False, mp_date=True
        mp_read_pass = False
     else:
        mp_read_pass = mp_read            
-    gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read_pass, mp_date=mp_date, SAT=SAT, NP=NP)
-    return  expt, gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg
+    gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg, pdf_series_avg, pd2_series_avg = cycle_thru_dates(dates, expt, ens=ens, deterministic=deterministic, ddir=this_ddir, mp_read=mp_read_pass, mp_date=mp_date, SAT=SAT, NP=NP)
+    return  expt, gl_series_avg, rgs_series_avg, bin_series_avg, tglrs_series, hist_series_avg, pdf_series_avg, pd2_series_avg
      
 
 def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_read=False, mp_date=True, SAT='ALL', NP=20):
@@ -456,6 +572,8 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
     tglrs_list = []
     expt_list = []
     hist_list = []
+    pdf_list = []
+    pd2_list = []
     if ( isinstance(ddir, list) ): 
         ddirs=ddir
     else:
@@ -467,12 +585,14 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
             time0 = time.time()
             ens_passed = enss[iexpt]
             dir_passed = ddirs[iexpt]
-            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
+            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series, pdf_series, pd2_series = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
             gl_list.append(gl_series)
             rgs_list.append(rgs_series)
             bin_list.append(bin_series)
             tglrs_list.append(tglrs)
             hist_list.append(hist_series)
+            pdf_list.append(pdf_series)
+            pd2_list.append(pd2_series)
             expt_list.append(expt_rtn)
             time1 = time.time()
             print( 'Processing time ', iexpt, expt, time1-time0)
@@ -488,7 +608,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
         FIN_LIST = RTN_LIST.get()
         sort_list = []
         for isort, fin_element in enumerate(FIN_LIST):
-            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series = fin_element
+            expt_rtn, gl_series, rgs_series, bin_series, tglrs, hist_series, pdf_series, pd2_series = fin_element
             if ( expt_rtn != expts[isort] ):
                 print("WARNING: Experiments order not conserved!!")
                 print(isort, expt_rtn, expts[isort])
@@ -498,23 +618,29 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
             bin_list.append(bin_series)
             tglrs_list.append(tglrs)
             hist_list.append(hist_series)
+            pdf_list.append(pdf_series)
+            pd2_list.append(pd2_series)
             expt_list.append(expt_rtn)
         expt_copy = expt_list.copy()
         expt_list = [ expt_list[isort] for isort in sort_list ]
         gl_list = [ gl_list[isort] for isort in sort_list ]
         rgs_list = [ rgs_list[isort] for isort in sort_list ]
         bin_list = [ bin_list[isort] for isort in sort_list ]
-        grgs_list = [ grgs_list[isort] for isort in sort_list ]
+        tgrgs_list = [ tgrgs_list[isort] for isort in sort_list ]
+        hist_list = [ hist_list[isort] for isort in sort_list ]
+        pdf_list = [ pdf_list[isort] for isort in sort_list ]
+        pd2_list = [ pd2_list[isort] for isort in sort_list ]
+        
         print("SORTED ", ( list(expt_list) == list(expts) ), expt_list, expts, sort_list, expt_copy )
     time1 = time.time()
     print( 'Total cycle_thur_expts Processing time ', 'ALL EXPTS', time1-time00, flush=True)
-    return gl_list, rgs_list, bin_list, tglrs_list, hist_list
+    return gl_list, rgs_list, bin_list, tglrs_list, hist_list, pdf_list, pd2_list
 
 def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_date=False, mp_read=False, outdirpre='', noensstat=False, SAT='ALL', NP=20, LEV_posd=None, LEV_anom=None, LEV_diff=None):
-    SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
+    SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'adjerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
     dropvar = ['obs', 'ana', 'varobs', 'varmod', 'varana']
     SSHpass = [ var for var in SSHvars if var not in dropvar ]
-    SSHvarswant = ['count', 'misfit', 'sqrerr', 'ensvar', 'crps', 'mod', 'oerr']
+    SSHvarswant = ['count', 'misfit', 'sqrerr', 'adjerr', 'ensvar', 'crps', 'mod', 'oerr']
     SSHvarslist = SSHvarswant+['lon_bin', 'lat_bin']
     print(SSHpass, SSHvarslist)
     nexpts = len(expts)
@@ -548,19 +674,46 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     datestr0 = check_date.check_date(dates[0],  dtlen=8)
     datestr1 = check_date.check_date(dates[-1], dtlen=8)
     datestrr = datestr0 + '_' + datestr1
-    gl_list, rgs_list, bin_list, tglrs_list, hist_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
+    gl_list, rgs_list, bin_list, tglrs_list, hist_list, pdf_list, pd2_list = cycle_thru_expts(dates, expts, enss, ddir=ddir, mp_expt=mp_expt, mp_read=mp_read, mp_date=mp_date, SAT=SAT, NP=NP)
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
 
     nexpt=len(expts)
     for iexpt, expt in enumerate(expts):
         binL = bin_list[iexpt][SSHvarslist+['ratir', 'ratio', 'ratip']]
-        hisL = hist_list[iexpt]['hlist']
+        hisL = hist_list[iexpt]['hist']
+        pdfL = pdf_list[iexpt][['misfit']]
+        pd2L = pd2_list[iexpt]
         outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'
         titpre=labels[iexpt]+' '+datestrr
         print('TITLE', titpre, len(titpre))
         plot_df_field(binL, titpre=titpre, outpre=outpreoutb, drop=dropvar, LEV_posd=LEV_posd, LEV_anom=LEV_anom)
         outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'+'rank'
+        print('PLOT RANK', type(hisL))
+        print('PLOT RANK', hisL)
+        print('PLOT RANK', hisL.shape)
+        print('PLOT RANK', hisL[0].shape)
+        try: 
+            hisL.to_numpy()
+        except:
+            print("PLOT RANK: TO NUMPY FAIL")
+            
         plot_rank_hist(hisL, titpre, outpreoutb) 
+        outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'+'pdf'
+        print('PLOT_PDF', type(pdfL))
+        print('PLOT PDF', pdfL)
+        print('PLOT PDF', pdfL.shape)
+        try: 
+            print('PLOT PDF', type(pdfL[0,0]))
+            print('PLOT PDF', pdfL[0,0].shape)
+        except:
+            pass
+        try:
+            # PDF IS zero dimensoinal?  GROUPY_BY????
+            plot_pdf(pdfL[0,0], titpre, outpreoutb) 
+        except:
+            print(traceback.print_exc())
+        outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'+'PDF'
+        plot_2dpdf(pd2L, titpre, outpreoutb) 
         print("FINISHED FULL FIELD SLA : ", labels[iexpt])
         if ( iexpt == 0 ): 
             bin0=binL
@@ -574,7 +727,8 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     print("FINISHED SLA PLOTS")
 
     narea = len(tglrs_list[0])
-    narea = len(read_DF_VP.PAREAS.keys())+1
+    areanams = ['global']+list(read_DF_VP.PAREAS.keys())
+    narea = len(namareas)
     for iarea in range(narea):
         tx_list = []
         for iexpt in range(nexpt):
@@ -586,24 +740,44 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             tx_list.append(tt_list)
             
         print(tx_list[0][0].keys())
-        plot_time_vars(dates, tx_list, labels, outdir[0], areanam, outdirpre=outdirpre)
+        plot_time_vars(dates, tx_list, labels, outdir[0], areanams[iarea], outdirpre=outdirpre)
     print("FINISHED TIMESERIES PLOTS")
 
-    plot_histogram(hist_np, title, pfile)
     return
 
-def plot_rank_hist(df_hist, title, pfile):
+def plot_rank_hist(np_hist, title, pfile):
+    print('PLOT RANK HIST', type(np_hist))
+    if ( isinstance(np_hist, np.ndarray) ): pass
+    if ( isinstance(np_hist, pd.core.series.Series) ): np_hist=np_hist[0]
     if ( pfile.endswith(".png") or pfile.endswith(".pdf") ): pfile=pfile[:-4]
-    rank_histogram.plot_histogram(df_hist, title, pfile)
+    rank_histogram.plot_histogram(np_hist, title, pfile)
     return
     
+def plot_pdf(df_pdf, title, pfile):
+    if ( pfile.endswith(".png") or pfile.endswith(".pdf") ): pfile=pfile[:-4]
+    __, bin_edge = init_pdf(def_brange_err, ['misfit'])
+    create_pdf.plot_pdf(bin_edge, df_pdf['misfit'], title, pfile)
+    return
+    
+def plot_2dpdf(np_pdf, title, pfile, levels=np.arange(0,0.2, 0.01), cmap=cmap_posd):
+    if ( pfile.endswith(".png") or pfile.endswith(".pdf") ): pfile=pfile[:-4]
+    __, bin_edge_err, bin_edge_spr = init2d_pdf()
+    IPOS = np.where(np_pdf > 0 )
+    ITEN = np.where(np_pdf > 0.1*np.max(np_pdf) )
+    print("NP_PDF NUM", len(IPOS[0]))
+    print("NP_PDF TEN", len(ITEN[0]))
+    print("NP_PDF MAX", np.max(np_pdf))
+    print("NP_PDF SUM", np.sum(np_pdf))
+    create_pdf.plot_2dpdf(bin_edge_err, bin_edge_spr, np_pdf, title, pfile)
+    return
+
 def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_anom=None):
    if ( isinstance(binF, list) or isinstance(binF, tuple) ): 
        for ibinF in binF:
            plot_df_field(ibinF, drop=drop, outpre=outpre)
        return
    binP = binF.copy()
-   lon_bin = binF['lon_bin'].to_numpy()
+   lon_bin = binF['lon_bin'].to_numpy()  # lon_bin is now a Frame not Series
    lat_bin = binF['lat_bin'].to_numpy()
    binP.drop(['lon_bin', 'lat_bin'], inplace=True, axis=1)
    for idrop in drop:
@@ -625,6 +799,20 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
        if ( vari[0:6] == 'ensvar' ):
            fld = np.sqrt(fld)
            varn='estd'
+           if ( isinstance(LEV_posd, type(None)) ):
+               LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
+           else:
+               LEVS=LEV_posd
+       if ( vari[0:6] == 'adjerr' ):
+           fl2 = fld - np.square(binF['misfit'].to_numpy())
+           ineg = np.where(fld < 0)
+           fld[ineg] = 0.0
+           ineg = np.where(fl2 < 0)
+           fl2[ineg] = 0.0
+           fld=np.sqrt(fld)
+           fl2=np.sqrt(fl2)
+           varn='armse'
+           var2='brmse'
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
@@ -663,7 +851,7 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
        if ( vari[0:5] == 'ratip' ):
            varn=vari
            #LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
-           LEVS = np.array([0, 0.25, 0.33, 0.5, 2.0/3.00, 0.75, 1.00, 4.0/3.0, 3.0/2.0, 2.00, 3.00, 4.00]) 
+           LEVS = np.array([0, 0.20, 0.25, 0.33, 0.5, 2.0/3.00, 0.75, 0.80, 5.0/6.00, 1.00, 1.20, 1.25, 4.0/3.0, 3.0/2.0, 2.00, 3.00, 4.00, 5.00, 100.0]) 
            cmap = cmap_zero
        outfile=outpre+varn+'.png'
        print('TITLE', titpre, len(titpre))
@@ -671,10 +859,27 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
            title=titpre+' '+varn
        else:
            title=varn
+           if ( varn == 'armse' ): title='adjusted rmse'
        print(varn, 'Max/Min', np.max(fld), np.min(fld)) 
        # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
        if ( not np.all(fld == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
-           cplot.pcolormesh(lon_bin, lat_bin, fld, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal', cmap=cmap)
+           print('PLOT', type(lon_bin), type(lat_bin), type(fld))
+           print('PLOT', lon_bin.shape, lat_bin.shape, fld.shape)
+           cplot.bin_pcolormesh(lon_bin, lat_bin, fld, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
+       if ( vari[0:6] == 'adjerr' ):
+           outfile=outpre+var2+'.png'
+           print('TITLE', titpre, len(titpre))
+           if ( len(titpre) > 0 ):
+               title=titpre+' '+var2
+           else:
+               title=var2
+               if ( varn == 'armse' ): title='adjusted stde'
+           print(var2, 'Max/Min', np.max(fl2), np.min(fl2)) 
+           # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
+           if ( not np.all(fl2 == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
+               print('PLOT', type(lon_bin), type(lat_bin), type(fld))
+               print('PLOT', lon_bin.shape, lat_bin.shape, fld.shape)
+               cplot.bin_pcolormesh(lon_bin, lat_bin, fl2, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
 def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.arange(-0.1, 0.11, 0.02)):
@@ -703,16 +908,19 @@ def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.a
    for vari in bkeys:
        fld1 = binP1.loc[:, [vari, 'lon_bin', 'lat_bin']]
        fld2 = binP2.loc[:, [vari, 'lon_bin', 'lat_bin']]
-       if ( ( vari[0:6] == 'sqrerr' ) or ( vari[0:6] == 'ensvar' ) ):
+       if ( ( vari[0:6] == 'sqrerr' ) or ( vari[0:6] == 'ensvar' ) or ( vari[0:6] == 'adjerr' ) ):
            fld1.loc[:, vari] = np.sqrt(fld1.loc[:, vari].to_numpy())
            fld2.loc[:, vari] = np.sqrt(fld2.loc[:, vari].to_numpy())
        fldd = fld1.merge(fld2, on=['lon_bin', 'lat_bin']).eval(vari+'= '+vari+'_x'+' - '+vari+'_y').drop([vari+'_x', vari+'_y'], axis=1)
        lon_bin = fldd.loc[:, 'lon_bin'].to_numpy()  # DONT ASSUME SAME LAT/LONS
        lat_bin = fldd.loc[:, 'lat_bin'].to_numpy()  # DONT ASSUME SAME LAT/LONS
        fldd_values = fldd.loc[:, vari].to_numpy()
+       print('DIFF PLOT SHAPE', fldd_values.shape, lon_bin.shape, lat_bin.shape)
        varn = vari
        if ( vari[0:6] == 'sqrerr' ):
            varn='rmse'
+       if ( vari[0:6] == 'adjerr' ):
+           varn='armse'
        if ( vari[0:6] == 'ensvar' ):
            varn='estd'
        cmap = cmap_zero
@@ -721,10 +929,11 @@ def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.a
            title=titpre+' '+varn
        else:
            title=varn+' difference'
+           if ( varn == 'armse' ): title='adjusted rmse difference'
        outfile=outpre+varn+'.png'
        # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
        if ( not np.all(fldd_values == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
-           cplot.pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal', cmap=cmap)
+           cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
 def plot_time_vars(dates, t_lists, labels, outdir, areanam, outdirpre=''):

@@ -8,7 +8,7 @@ export MPLBACKEND=agg
 source jobscripts/prepython.sh
 
 python << EOD
-from importlib import reload
+#from importlib import reload
 import sys
 import os
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
@@ -29,5 +29,6 @@ ddir=[read_DF_VP.get_mdir(5,user='dpe000')]*3
 ddir=['/fs/site5/eccc/cmd/e/saqu500/maestro_archives/SynObs']*3
 outdir=[expt for expt in expts]
 outdir=['CNTLV2', 'NoAltV2', 'NoArgoV2']
-read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre='ECMP_', NP=20)
+dsite5='/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/'
+read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=dsite5+'ECMP_', NP=20)
 EOD

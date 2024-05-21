@@ -75,6 +75,28 @@ def adjust_xaxis(taxe, logrange=np.array([1,3])):
     taxe.set_xlabel('Wavelength')
     return taxe
 
+def special_xaxis(taxe):
+    lrange = [40, 1000]
+    lmajor=[50, 100, 150, 200, 300, 400, 500, 1000]
+    lminor=[40, 60, 70, 80, 90]+list(np.arange(110, 150, 10))+list(np.arange(160, 200, 10))+list(np.arange(210, 300, 10))+[600, 700, 800, 900]
+    #taxe.set_xscale('function', functions=(forlog, baclog))
+    taxe.xaxis.set_major_formatter(tk.NullFormatter())
+    taxe.xaxis.set_minor_formatter(tk.NullFormatter())
+    taxe.set_xlim(inverse(np.flip(lrange)))
+    taxe.set_xticks(inverse(np.flip(lmajor)))
+    taxe.set_xticks(np.flip(inverse(lminor)), minor=True)
+    Xxticks = taxe.get_xticks()
+    Mxticks = taxe.get_xticks(minor=True)
+    OldXlabels = taxe.get_xticklabels()
+    NewXxticks = inverse(Xxticks)
+    NewXlabels = [ str(int(round(xtick))) for xtick in NewXxticks]
+    #print(OldXlabels, NewXlabels)
+    #print('old labels', taxe.get_xticklabels())
+    taxe.set_xticklabels(NewXlabels)
+    #print('new labels', taxe.get_xticklabels())
+    taxe.set_xlabel('Wavelength')
+    return taxe
+
 def cycle_lon(lons):
     clons = (lons+180)%360 - 180
     return clons
@@ -828,7 +850,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     K05 = []  
     KMN = []
     iLT = [ [] for LAT in LATS]
-    LATP = [-90, -60, -20, 20, 60, 90]
+    #LATP = [-90, -60, -20, 20, 60, 90]
+    LATP = [-75, -45, -15, 15, 45, 75]
     nlatp = len(LATP)-1
     jLT = [ [] for LAT in LATP[1:] ]
     for ibox, BOX in enumerate(BOXES):
@@ -917,8 +940,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         if ( ilat >= 2*nclr ): linestyle='.'
         br.semilogx(kwave[1:], iPSM[ilat][1:]/iPSE[ilat][1:], linestyle=linestyle, color=clr[ilat%nclr], label=str(lat))
     br.legend()
-    br = adjust_xaxis(br)
-    br.set_xlabel("wavelength")
+    br = special_xaxis(br)
+    br.set_xlabel("wavelength (km)")
     br.set_ylabel("Ratio")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
@@ -938,19 +961,20 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         linestyle='--'
         minLat=LATP[jlat]
         maxLat=LATP[jlat+1]   
-        if ( jlat == 0 ):
-            label = 'lat < '+str(maxLat)
-        elif ( jlat == nlatp-1 ):
-            label = 'lat > '+str(minLat)
-        else:
-            label = str(minLat)+' < lat < '+str(maxLat)
+        #if ( jlat == 0 ):
+        #    label = 'lat < '+str(maxLat)
+        #elif ( jlat == nlatp-1 ):
+        #    label = 'lat > '+str(minLat)
+        #else:
+        #    label = str(minLat)+' < lat < '+str(maxLat)
+        label = str(minLat)+' < lat < '+str(maxLat)
         print('jlat ratio', jlat, label, jPSM[jlat][1:]/jPSE[jlat][1:], 'mean', jPSM[jlat], 'member', jPSE[jlat])
         br.semilogx(kwave[1:], jPSM[jlat][1:]/jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
         be.loglog(kwave[1:], jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
         bm.loglog(kwave[1:], jPSM[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
     br.legend()
-    br = adjust_xaxis(br)
-    br.set_xlabel("wavelength")
+    br = special_xaxis(br)
+    br.set_xlabel("wavelength (km)")
     br.set_ylabel("Ratio")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
@@ -958,8 +982,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gir)
     be.legend()
-    be = adjust_xaxis(be)
-    be.set_xlabel("wavelength")
+    be = special_xaxis(be)
+    be.set_xlabel("wavelength (km)")
     be.set_ylabel("Power")
     be.grid(linestyle=':', color='gray', which='both')
     gie.tight_layout()
@@ -967,8 +991,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     gie.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gie)
     bm.legend()
-    bm = adjust_xaxis(bm)
-    bm.set_xlabel("wavelength")
+    bm = special_xaxis(bm)
+    bm.set_xlabel("wavelength (km)")
     bm.set_ylabel("Ratio")
     bm.grid(linestyle=':', color='gray', which='both')
     gim.tight_layout()
@@ -982,8 +1006,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member')
     br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
     bx.legend()
-    bx = adjust_xaxis(bx)
-    bx.set_xlabel("wavelength")
+    bx = special_xaxis(bx)
+    bx.set_xlabel("wavelength (km)")
     bx.set_ylabel("PSD(k)")
     bx.grid(linestyle=':', color='gray', which='both')
     gig.tight_layout()
@@ -992,8 +1016,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     gig.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gig)
     br.legend()
-    br = adjust_xaxis(br)
-    br.set_xlabel("wavelength")
+    br = special_xaxis(br)
+    br.set_xlabel("wavelength (km)")
     br.set_ylabel("Ratio")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
@@ -1024,7 +1048,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
     print('Max/mean length 05', np.max(LENGTH), np.mean(LENGTH))
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.5*GDX, cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png')
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.4*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png', alpha=1.0)
 
     izero = np.where(KMN == 0 )
     KFN = KMN[:]
@@ -1033,7 +1057,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
     print('Max/mean length MN', np.max(LENGTH), np.mean(LENGTH))
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=0.4*GDX, cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png')
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0)
 
     print('COMPLETED PLOTING')
     return kwave, psd_mean, psd_memb, K05

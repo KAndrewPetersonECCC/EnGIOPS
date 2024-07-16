@@ -204,7 +204,7 @@ def calc_errors_date(date, expt, ens=list(range(21)), deterministic=False, ddir=
     pdf_df = calc_pdf(df_EnSSH[['misfit']])   # calc_pdf(df_column, brange=def_brange_err, Nbins=Nbins_PDF):
     pd2_ls = calc_2dpdf(df_EaSSH, var_err='misfit', var_spr='ensvar') # calc_2dpdf(df_column, var_err='misfit', var_spr='ensvar', brange_err=[-5,5], brange_spr=[0,5], Nbins=100)
     time1 = time.time()
-    print('EXITING CALC ERRORS for date', date, time1-time0, time.strftime("%Y%m%d--%H:%M:%S", time.gmtime()), flush=True)
+    print('EXITING CALC ERRORS for expt/date', expt, date, time1-time0, time.strftime("%Y%m%d--%H:%M:%S", time.gmtime()), flush=True)
     
     return gl_df, rgs_df, bin_df, hist_df, pdf_df, pd2_ls
     
@@ -490,7 +490,7 @@ def addto_sums( old_sums, add_sums):
 def final_mean( df_sum, count_name, coord_list ):
    df_avg = df_sum.copy()
    keys = df_avg.keys()
-   print('FINAL MEAN KEYS', keys, type(df_sum))
+   #print('FINAL MEAN KEYS', keys, type(df_sum))
    for akey in coord_list:
        if ( akey in keys ):
            keys = keys.drop(akey)
@@ -636,7 +636,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
     print( 'Total cycle_thur_expts Processing time ', 'ALL EXPTS', time1-time00, flush=True)
     return gl_list, rgs_list, bin_list, tglrs_list, hist_list, pdf_list, pd2_list
 
-def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_date=False, mp_read=False, outdirpre='', noensstat=False, SAT='ALL', NP=20, LEV_posd=None, LEV_anom=None, LEV_diff=None):
+def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=get_mdir(5), mp_expt=False, mp_date=False, mp_read=False, outdirpre='', noensstat=False, SAT='ALL', NP=20, LEV_posd=None, LEV_anom=None, LEV_diff=None, LEV_ansq=None):
     SSHvars = ['obs', 'mod', 'ana', 'oerr', 'misfit', 'sqrerr', 'adjerr', 'crps', 'ensvar', 'varobs', 'varmod', 'varana', 'count']
     dropvar = ['obs', 'ana', 'varobs', 'varmod', 'varana']
     SSHpass = [ var for var in SSHvars if var not in dropvar ]
@@ -686,7 +686,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
         outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'
         titpre=labels[iexpt]+' '+datestrr
         print('TITLE', titpre, len(titpre))
-        plot_df_field(binL, titpre=titpre, outpre=outpreoutb, drop=dropvar, LEV_posd=LEV_posd, LEV_anom=LEV_anom)
+        plot_df_field(binL, titpre=titpre, outpre=outpreoutb, drop=dropvar, LEV_posd=LEV_posd, LEV_anom=LEV_anom, LEV_ansq=LEV_ansq)
         outpreoutb=outdirpre+outdir[iexpt]+'/'+'SLA_'+datestrr+'_'+'rank'
         print('PLOT RANK', type(hisL))
         print('PLOT RANK', hisL)
@@ -728,7 +728,7 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
 
     narea = len(tglrs_list[0])
     areanams = ['global']+list(read_DF_VP.PAREAS.keys())
-    narea = len(namareas)
+    narea = len(areanams)
     for iarea in range(narea):
         tx_list = []
         for iexpt in range(nexpt):
@@ -740,7 +740,8 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             tx_list.append(tt_list)
             
         print(tx_list[0][0].keys())
-        plot_time_vars(dates, tx_list, labels, outdir[0], areanams[iarea], outdirpre=outdirpre)
+        outdire=outdirpre+outdir[0]+'/'
+        plot_time_vars(dates, tx_list, labels, outdire, areanams[iarea])
     print("FINISHED TIMESERIES PLOTS")
 
     return
@@ -771,7 +772,7 @@ def plot_2dpdf(np_pdf, title, pfile, levels=np.arange(0,0.2, 0.01), cmap=cmap_po
     create_pdf.plot_2dpdf(bin_edge_err, bin_edge_spr, np_pdf, title, pfile)
     return
 
-def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_anom=None):
+def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_anom=None, LEV_ansq=None):
    if ( isinstance(binF, list) or isinstance(binF, tuple) ): 
        for ibinF in binF:
            plot_df_field(ibinF, drop=drop, outpre=outpre)
@@ -789,34 +790,52 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
        varn = vari
        LEVS = None
        cmap = cmap_posd
+       amap = cmap_zero
        if ( vari[0:6] == 'sqrerr' ):
+           fl2 = fld - np.square(binF['misfit'].to_numpy())
            fld=np.sqrt(fld)
+           fl2=np.sqrt(fld)
            varn='rmse'
+           var2='stde'
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
                LEVS=LEV_posd
+           if ( isinstance(LEV_posd, type(None)) ):
+               LEV2 = read_DF_VP.find_good_contour_levels(fl2, posd=True)
+           else:
+               LEV2=LEV_posd
        if ( vari[0:6] == 'ensvar' ):
+           fl2 = (binF['sqrerr'].to_numpy()) - np.square(binF['misfit'].to_numpy()) - fld
            fld = np.sqrt(fld)
            varn='estd'
+           var2='drmse'
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
                LEVS=LEV_posd
+           if ( isinstance(LEV_ansq, type(None)) ):
+               LEV2 = read_DF_VP.find_good_contour_levels(fl2, posd=False)
+           else:
+               LEV2=LEV_ansq
        if ( vari[0:6] == 'adjerr' ):
-           fl2 = fld - np.square(binF['misfit'].to_numpy())
+           fl2 = fld - np.square(binF['misfit'].to_numpy()) - (binF['ensvar'].to_numpy())
            ineg = np.where(fld < 0)
            fld[ineg] = 0.0
            ineg = np.where(fl2 < 0)
-           fl2[ineg] = 0.0
+           #fl2[ineg] = 0.0
            fld=np.sqrt(fld)
-           fl2=np.sqrt(fl2)
+           #fl2=np.sqrt(fl2)
            varn='armse'
            var2='brmse'
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
            else:
                LEVS=LEV_posd
+           if ( isinstance(LEV_ansq, type(None)) ):
+               LEV2 = read_DF_VP.find_good_contour_levels(fl2, posd=False)
+           else:
+               LEV2=LEV_ansq
        if ( vari[0:4] == 'crps' ):
            if ( isinstance(LEV_posd, type(None)) ):
                LEVS = read_DF_VP.find_good_contour_levels(fld, posd=True)
@@ -866,20 +885,28 @@ def plot_df_field(binF, drop=[], outpre='PLOTS/', titpre='', LEV_posd=None, LEV_
            print('PLOT', type(lon_bin), type(lat_bin), type(fld))
            print('PLOT', lon_bin.shape, lat_bin.shape, fld.shape)
            cplot.bin_pcolormesh(lon_bin, lat_bin, fld, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
-       if ( vari[0:6] == 'adjerr' ):
+       if ( ( vari[0:6] == 'adjerr' ) or ( vari[0:6] == 'sqrerr' )  or ( vari[0:6] == 'ensvar' )):
            outfile=outpre+var2+'.png'
+           dmap = amap
+           if ( var2 == 'bmrse' ): cmap = amap
+           if ( var2 == 'drmse' ): cmap = amap
+           if ( var2 == 'stde' ): dmap = cmap
            print('TITLE', titpre, len(titpre))
            if ( len(titpre) > 0 ):
                title=titpre+' '+var2
+               if ( var2 == 'brmse' ): title=titpre+' '+'squared errors difference'
+               if ( var2 == 'drmse' ): title=titpre+' '+'squared errors difference'
            else:
                title=var2
-               if ( varn == 'armse' ): title='adjusted stde'
+               if ( var2 == 'brmse' ): title='squared errors difference'
+               if ( var2 == 'drmse' ): title='squared errors difference'
            print(var2, 'Max/Min', np.max(fl2), np.min(fl2)) 
            # Attempting to plot zero fields (like ensemble spread of deterministic field) will fail.
            if ( not np.all(fl2 == 0 ) ):  #  Note:  I THINK THEY ARE ALL ZEROS -- NOT MASKED.
                print('PLOT', type(lon_bin), type(lat_bin), type(fld))
                print('PLOT', lon_bin.shape, lat_bin.shape, fld.shape)
-               cplot.bin_pcolormesh(lon_bin, lat_bin, fl2, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
+               print('LEV', LEV2, len(LEV2))
+               cplot.bin_pcolormesh(lon_bin, lat_bin, fl2, ddeg=DELTA, title=title, levels=LEV2, outfile=outfile, obar='horizontal', cmap=dmap)
    return
 
 def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.arange(-0.1, 0.11, 0.02)):
@@ -936,7 +963,7 @@ def plot_diff_field(bin1, bin2, drop=[], titpre='', outpre='PLOTS/', LEVS = np.a
            cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, ddeg=DELTA, title=title, levels=LEVS, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
-def plot_time_vars(dates, t_lists, labels, outdir, areanam, outdirpre=''):
+def plot_time_vars(dates, t_lists, labels, outdir, areanam):
     
     datestr1 = check_date.check_date(dates[0], dtlen=8)
     datestr2 = check_date.check_date(dates[-1], dtlen=8)
@@ -948,8 +975,7 @@ def plot_time_vars(dates, t_lists, labels, outdir, areanam, outdirpre=''):
     formatter = mdates.ConciseDateFormatter(locator)
     colors = ['r', 'b', 'g', 'c', 'm']
     for var in Vars:
-      outdire=ourdirpre+'_'+outdir+'/'
-      outfile=outdire+'tseries_'+datestrr+'_'+areanam+'_'+varnam
+      outfile=outdir+'/'+'tseries_'+datestrr+'_'+areanam+'_'+varnam
       fig, axe = plt.subplots()
       axe.xaxis.set_major_locator(locator)
       axe.xaxis.set_major_formatter(formatter)

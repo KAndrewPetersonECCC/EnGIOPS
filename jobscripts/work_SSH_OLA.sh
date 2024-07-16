@@ -34,6 +34,8 @@ LEV1 = np.arange(0, 0.16, 0.01)
 LEV2 = np.arange(-0.095, 0.1, 0.01)
 LEV3 = np.arange(-0.045, 0.05, 0.01)
 LEV4 = np.arange(0, 0.051, 0.005)
+LEV5 = LEV2/10.0 
+LEV6 = np.array([-0.01, -0.006, -0.004, -0.002, -0.001, 0.001, 0.002, 0.004, 0.006, 0.01])
 dsite5='/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/'
 outdirpre=dsite5+'ECMP_'
 outdirprf=dsite5+'ECMQ_'
@@ -42,7 +44,7 @@ for odir in outdir:
     subprocess.call(['mkdir', outdirpre+odir])
     subprocess.call(['ln', '-s', outdirpre+odir, './'])
    
-read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirprf, NP=20, LEV_posd=LEV4, LEV_anom=LEV2, LEV_diff=LEV3)
-read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre, NP=20, LEV_posd=LEV1, LEV_anom=LEV2, LEV_diff=LEV3)
+read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirprf, NP=20, LEV_posd=LEV4, LEV_anom=LEV2, LEV_diff=LEV3, LEV_ansq=LEV5)
+read_DF_IS.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre, NP=20, LEV_posd=LEV1, LEV_anom=LEV2, LEV_diff=LEV3, LEV_ansq=LEV6)
 
 EOD

@@ -71,7 +71,7 @@ def plot_pdf(bin_edge, bins, title, pfile):
     fig.savefig(pfile+'.pdf',bbox_inches='tight')
     plt.close(fig)
 
-def plot_2dpdf(bin_edge1, bin_edge2, bins, title, pfile, levels=np.arange(0,1.1,0.1), cmap=dmap, cbar=True, obar='horizontal'):
+def plot_2dpdf(bin_edge1, bin_edge2, bins, title, pfile, levels=np.arange(0,1.1,0.1), cmap=dmap, cbar=True, obar='horizontal', cbar_fontsize=None):
     bwidth1=bin_edge1[1]-bin_edge1[0]
     bwidth2=bin_edge2[1]-bin_edge2[0]
     bmiddle1=bin_edge1[:-1]+bwidth1

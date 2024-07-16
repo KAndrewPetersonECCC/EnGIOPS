@@ -79,7 +79,7 @@ def get_archive(destdir, branch, date, fcst_hour, ensnum=None, ext_string=None, 
         #rc=subprocess.call(['rarc','-i',fetch_file, '-m', log_file])
         command='/home/dpe000/GEOPS/jobscripts/rarc_retrieval.sh'
         total_command=[command, '-i='+fetch_file,'-l='+log_file]
-        print(total_command)
+        print(''.join(total_command))
         rc=subprocess.call(total_command)
     else:
         rc=0

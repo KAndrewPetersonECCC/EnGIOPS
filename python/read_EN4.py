@@ -86,6 +86,10 @@ def make_TZaware(date):
 def find_indices(list_to_check, item_to_find):
     return [idx for idx, value in enumerate(list_to_check) if value == item_to_find]   
 
+def find_in_latitudes(LAT, lat_range):
+    ILAT = np.where( ( LAT > lat_range[0] ) & ( LAT <= lat_range[1] ) )
+    return ILAT[0]
+    
 def find_both_valid_TS(QT, QS):
     IBTH = np.where( np.all((QT == QS),axis=1) )
     return IBTH[0]

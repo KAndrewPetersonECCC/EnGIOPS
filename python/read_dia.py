@@ -230,7 +230,7 @@ def check_ensembles(ensembles):
   
   return ensembles
        
-def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
+def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[], date_anal=None):
 
     ensembles = check_ensembles(ensembles)
     ensstr=str(0)
@@ -245,7 +245,10 @@ def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d
       ensstr=''
     if ( len(ensembles) == 0 ): ensembles=range(nensembles)
     datestr=date.strftime("%Y%m%d%H")
-    datestd=datestr[:8]
+    if  ( isinstance(date_anal, type(None)) ):
+        datestd=datestr[:8]
+    else:
+        datestd=date_anal.strftime("%Y%m%d")
 
     if ( fld == 'T' ): var='thetao'
     if ( fld == 'Tsppt'): var='sppt_tem'
@@ -284,10 +287,16 @@ def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d
           datestr=date.strftime("%m%d%H")
           yearstr=string(cyrs[ens])
           datestr=yearstr+datestr
-          datestd=datestr[:8]
+          if  ( isinstance(date_anal, type(None)) ):
+              datestd=datestr[:8]
+          else:
+              datestd=yearstr+date_anal.strftime("%m%d")
 
         print( ens_pre, ensstr, datestd)        
-        file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc'
+        if  ( isinstance(date_anal, type(None)) ):
+            file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc'
+        else:
+            file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr[:8]+'-'+datestr[:8]+'.nc'
         if ( fld == 'TAUX' or fld == 'TAUY' ):
             file=glob.glob(datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+'*'+'.nc')[0]
         print(file)
@@ -305,8 +314,8 @@ def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d
         FLD_ENSEMBLE.append(FLD)
     return lon, lat, FLD_ENSEMBLE
 
-def read_ensemble_plus_depth(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
-    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles)
+def read_ensemble_plus_depth(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[], date_anal=None):
+    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles, date_anal=date_anal)
     datestr=date.strftime("%Y%m%d%H")
     datestd=datestr[:8]
     grid='grid_'+fld
@@ -323,18 +332,26 @@ def read_ensemble_plus_depth(datadir, ens_pre, date, fld='T', file_pre='ORCA025-
         depthT = read_sam2_levels(fila, fld=depvar)
     return depthT, lon, lat, FLD_ENSEMBLE
        
-def read_ensemble_plus_depthandtime(datadir, ens_pre, date, fld='T', time_fld='time_instant', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
-    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles)
+def read_ensemble_plus_depthandtime(datadir, ens_pre, date, fld='T', time_fld='time_instant', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[], date_anal=None):
+    lon, lat, FLD_ENSEMBLE = read_ensemble(datadir, ens_pre, date, fld=fld, file_pre=file_pre, ensembles=ensembles, date_anal=date_anal)
     datestr=date.strftime("%Y%m%d%H")
-    datestd=datestr[:8]
+    if ( isinstance(date_anal, type(None)) ):
+        datestd=datestr[:8]
+    else:
+        datestd=date_anal.strftime("%Y%m%d")
     grid='grid_'+fld
     if ( fld == 'S' ): grid='grid_'+'T'
     depvar='deptht'
     if ( fld == 'U' ): depvar='depthu'
     if ( fld == 'V' ): depvar='depthv'
     
-    fil0=datadir+'/'+ens_pre+'0'+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
-    fila=datadir+'/'+ens_pre+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    if ( isinstance(date_anal, type(None)) ):
+        fil0=datadir+'/'+ens_pre+'0'+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+        fila=datadir+'/'+ens_pre+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc' 
+    else:
+        fil0=datadir+'/'+ens_pre+'0'+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr[:8]+'-'+datestr[:8]+'.nc' 
+        fila=datadir+'/'+ens_pre+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr[:8]+'-'+datestr[:8]+'.nc' 
+        
     try:
         depthT =  read_sam2_levels(fil0, fld=depvar)
         times = read_sam2_times(file=fil0, fld=time_fld, T_ref=datetime.datetime(1950,1,1, 0,0,0,0, pytz.UTC))

@@ -1,7 +1,5 @@
-#from importlib import reload
 import sys
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
-sys.path.insert(0, '/home/dpe000/EnGIOPS/test_python')
 
 import numpy as np
 import datetime
@@ -43,17 +41,6 @@ def find_stochastic_variation(expt, date=thedate, lead=120, hall=5):
     MSSTstd1 = np.mean(SSTstd1); MSSTstd2 = np.mean(SSTstd2)
     return MSSTstd1, MSSTstd2, SSTstd1, SSTstd2
 
-def find_experiment_variation(expt1, expt2, date=thedate, lead=120, hall=5):
-    eSST1=read_expt_SST(expt1, date=date, lead=lead, hall=hall)  
-    eSST2=read_expt_SST(expt2, date=date, lead=lead, hall=hall)    
-    eSSTstd = []
-    MSSTstd = []
-    for iens, ensm in enumerate(eSST1):
-        SSTstd = np.sqrt( np.square(eSST1[iens]-eSST2[iens]) )
-        eSSTstd.append(SSTstd)
-        MSSTstd.append(np.nanmean(SSTstd))
-    return eSSTstd, MSSTstd
-
 def find_equivalence(expt1, expt2, date=thedate, lead=120, hall=5):
     eSST1=read_expt_SST(expt1, date=date, lead=lead, hall=hall) 
     eSST2=read_expt_SST(expt2, date=date, lead=lead, hall=hall) 
@@ -77,16 +64,14 @@ def find_mequivalence(expt, date=thedate, lead=120, hall=5):
 def do_tests():
     nav_lon, nav_lat = read_navs()
     print('Check ensemble std.')
-    for expt in ['stopack_test4', 'stopack_test2', 'stopack_test1', 'stopack_cntl9', 'stopack_cntl8', 'stopack_cntl7']: 
+    for expt in ['stopack_test4', 'stopack_test2', 'stopack_test1', 'stopack_cntl8', 'stopack_cntl7']: 
         MSSTstd1, MSSTstd2, SSTstd1, SSTstd2 = find_stochastic_variation(expt)
         print(expt, MSSTstd1, MSSTstd2)
         # produce plot
     rexpt = 'stopack_cntl7'
-    sexpt = 'stopack_cntl9'
     print('Checking member equivalence of reference')
     print(rexpt, find_mequivalence(rexpt))
     print(' Checking Equivlence')
-    for expt in ['stopack_test5', 'stopack_test2', 'stopack_test1', 'stopack_cntl9', 'stopack_cntl8', 'stopack_cntl7']:
+    for expt in ['stopack_test4', 'stopack_test2', 'stopack_test1', 'stopack_cntl7' ]:
         print(expt, find_equivalence(expt, rexpt))
-        print(expt, find_equivalence(expt, sexpt))
         print(expt, find_mequivalence(expt))

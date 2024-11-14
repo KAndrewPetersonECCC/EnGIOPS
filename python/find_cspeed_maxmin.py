@@ -129,6 +129,7 @@ def find_mins_obs(COBS, DEP, mindepth=10.0, maxdepth=100.0, mp=False):
             
     
 def find_mins_arr(CFLD, depth=depth_default, mindepth=10.0, maxdepth=100.0, mp_depth=True, bySea=True, byxy=False):
+    print(CFLD.shape)
     nz, nx, ny = CFLD.shape
     smask = CFLD.mask[0,:,:]
     ISEA = np.where(smask == False)
@@ -200,7 +201,7 @@ def find_mins_arr(CFLD, depth=depth_default, mindepth=10.0, maxdepth=100.0, mp_d
                 MDep[ix, iy] = RESULT[1]
     return TorF, MDep
           
-def find_mins_ens(ECFLD, depth=depth_default, mindepth=10.0, maxdepth=100.0, mp_ensemble=True, mp_depth=False, bySea=True, byxy=False):
+def find_mins_ens(ECFLD, depth=depth_default, mindepth=10.0, maxdepth=100.0, mp_ensemble=True, mp_depth=False, bySea=True, byxy=False, GIOPS=True):
     mp_usedepth = mp_depth
     nproc = np.min([NCPUS, len(ECFLD)])
     if ( mp_ensemble ):  mp_usedepth=False
@@ -223,8 +224,8 @@ def find_mins_ens(ECFLD, depth=depth_default, mindepth=10.0, maxdepth=100.0, mp_
             EMDep.append(MDep)
     PDuctA = sum( [TorF.astype(float) for TorF in ETorF] )/len(ETorF)
     PVar, PDuct = read_dia.ensemble_var(ETorF)
-    PVar_masked = add_mask(PVar)
-    PDuct_masked = add_mask(PDuct)
+    PVar_masked = add_mask(PVar, GIOPS=GIOPS)
+    PDuct_masked = add_mask(PDuct, GIOPS=GIOPS)
     print( np.all(PDuctA == PDuct) )
     return ETorF, EMDep, PDuct_masked, PVar_masked
     
@@ -264,7 +265,7 @@ def close_match_of_date(times, date, max_dt=3600.):
     itime = TF.index(True)
     return itime
 
-def read_cspeed_fcst(date, lhr, expt='OPER', ddir=mir5, exec=True):
+def read_cspeed_fcst(date, lhr, expt='OPER', ddir=mir5, exec=True, GIOPS=True):
     ETFLD = []
     ESFLD = []
     for ie in range(21):
@@ -279,13 +280,16 @@ def read_cspeed_fcst(date, lhr, expt='OPER', ddir=mir5, exec=True):
         ESFLD.append(S_3D)
     depthT = np.array(depthT)
     depthS = np.array(depthS)
-    ETFLD = add_mask(ETFLD)
-    ESFLD = add_mask(ESFLD)
+    ETFLD = add_mask(ETFLD, GIOPS=GIOPS)
+    ESFLD = add_mask(ESFLD, GIOPS=GIOPS)
     ECFLD = calc_sound_speed_ensemble(ETFLD, ESFLD, depthT, mp_ensemble=True)     
     return depthT, lone, late, ECFLD, ETFLD, ESFLD
         
                   
-def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], verbose=False):
+def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], verbose=False, GIOPS=True):
+    
+    if ( GIOPS ): GIOPS_PRE='ORCA025-CMC'
+    if ( not GIOPS ): GIOPS_PRE='Creg12-CMC'
 
     if ( verbose ):
         print('ENSEMBLES in read_cspeed_date at start = ', ensembles) 
@@ -319,7 +323,7 @@ def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], v
             for lag in [-14, -7, 0, 7, 14]:
                 date_in = date_new + datetime.timedelta(days=lag)
                 print(date_in)
-                depthT, lone, late, CFLD, TFLD, SFLD = read_cspeed_date(date_in, expt=expt, ddir=ddir, anal=anal, ensembles='d', verbose=verbose)
+                depthT, lone, late, CFLD, TFLD, SFLD = read_cspeed_date(date_in, expt=expt, ddir=ddir, anal=anal, ensembles='d', verbose=verbose, GIOPS=GIOPS)
                 ECFLD.append(CFLD[0])
                 ETFLD.append(TFLD[0])
                 ESFLD.append(SFLD[0])
@@ -341,7 +345,8 @@ def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], v
         if ( anal_diff == 0 ):
             if ( verbose ):
               print('ENSEMBLES in read_cspeed_date with anal = ', ensembles) 
-            time, depthT, lone, late, ETFLD_big = read_dia.read_ensemble_plus_depthandtime(ddir, expt, date, fld='T', time_fld='time_instant', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=ensembles)
+            file_pre=GIOPS_PRE+'-ANAL_1d_'
+            time, depthT, lone, late, ETFLD_big = read_dia.read_ensemble_plus_depthandtime(ddir, expt, date, fld='T', time_fld='time_instant', file_pre=file_pre, ensembles=ensembles)
             lone, late, ESFLD_big = read_dia.read_ensemble(ddir, expt, date, fld='S', file_pre='ORCA025-CMC-ANAL_1d_',ensembles=ensembles)
             ETFLD = [ TFLD[0].copy() for TFLD in ETFLD_big]     
             del(ETFLD_big)
@@ -352,21 +357,34 @@ def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], v
            depthT, lone, late, ECFLD, ETFLD, ESFLD = None, None, None, None, None, None
     else:
         if ( verbose ): print('ENSEMBLES in read_cspeed_date with trial = ', ensembles) 
-        time, depthT, lone, late, ETFLD_big = read_dia.read_ensemble_plus_depthandtime(ddir, expt, anal_date, fld='T', time_fld='time_instant', file_pre='ORCA025-CMC-TRIAL_1d_', ensembles=ensembles)
-        lone, late, ESFLD_big = read_dia.read_ensemble(ddir, expt, anal_date, fld='S', file_pre='ORCA025-CMC-TRIAL_1d_',ensembles=ensembles)
-        for iens, TFLD in enumerate(ETFLD_big):
-            nt, nz, nz, ny = TFLD.shape
-            if ( nt != 7 ):  print('Member Truncated: ', iens, anal_date)
-        itime = close_match_of_date(time, date)
-        ETFLD = [ TFLD[itime].copy() for TFLD in ETFLD_big]
-        del(ETFLD_big)
-        ESFLD = [ SFLD[itime].copy() for SFLD in ESFLD_big]
-        del(ESFLD_big)
+        if ( GIOPS ):
+            file_pre=GIOPS_PRE+'-TRIAL_1d_'
+            time, depthT, lone, late, ETFLD_big = read_dia.read_ensemble_plus_depthandtime(ddir, expt, anal_date, fld='T', time_fld='time_instant', file_pre=file_pre, ensembles=ensembles)
+            lone, late, ESFLD_big = read_dia.read_ensemble(ddir, expt, anal_date, fld='S', file_pre=file_pre,ensembles=ensembles)
+            for iens, TFLD in enumerate(ETFLD_big):
+                nt, nz, nz, ny = TFLD.shape
+                if ( nt != 7 ):  print('Member Truncated: ', iens, anal_date)
+            itime = close_match_of_date(time, date)
+            ETFLD = [ TFLD[itime].copy() for TFLD in ETFLD_big]
+            del(ETFLD_big)
+            ESFLD = [ SFLD[itime].copy() for SFLD in ESFLD_big]
+            del(ESFLD_big)
+        elif ( not GIOPS ):
+            file_pre=GIOPS_PRE+'-TRIAL_1d_'
+            ## THIS IS CONFUSING!!!
+            ## date is instanteous date at end of observing period (i.e. 0Z the next day)  -- adate in previous instances (adate = date + 1)
+            ##   But date in file stamp of RIOPS files is mid-day of day in question (so adate -1)
+            fdate = date - datetime.timedelta(hours=12)
+            time, depthT, lone, late, ETFLD_big = read_dia.read_ensemble_plus_depthandtime(ddir, expt, fdate, fld='T', time_fld='time_instant', file_pre=file_pre, ensembles=ensembles, date_anal=anal_date)
+            lone, late, ESFLD_big = read_dia.read_ensemble(ddir, expt, date, fld='S', file_pre=file_pre, ensembles=ensembles, date_anal=anal_date)
+            ETFLD = [ TFLD[0].copy() for TFLD in ETFLD_big]
+            ESFLD = [ SFLD[0].copy() for SFLD in ESFLD_big]
+            del(ETFLD_big, ESFLD_big)
     if ( not isinstance(ETFLD, type(None)) ): 
         print('Adding Mask')
         print('MEMORY = ', psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
-        ETFLD = add_mask(ETFLD)
-        ESFLD = add_mask(ESFLD)
+        ETFLD = add_mask(ETFLD, GIOPS=GIOPS)
+        ESFLD = add_mask(ESFLD, GIOPS=GIOPS)
         if ( verbose ):
           print('Begin Calculate C Speed')
           print('MEMORY = ', psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
@@ -376,19 +394,22 @@ def read_cspeed_date(date, expt='GIOPS_T', ddir=mir5, anal=True, ensembles=[], v
       print('MEMORY = ', psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
     return depthT, lone, late, ECFLD, ETFLD, ESFLD
 
-def add_mask(FLD, mask_var='tmask', mp=False):
-    tmask = np.squeeze(read_grid.read_mask(var=mask_var))
+def add_mask(FLD, mask_var='tmask', mp=False, GIOPS=True):
+    if ( GIOPS ):
+        tmask = np.squeeze(read_grid.read_mask(var=mask_var))
+    else:
+        tmask = np.squeeze(read_grid.read_riops_mask(var=mask_var))
     if ( isinstance(FLD, list) ):
         if ( mp ):   #  NOTE:  Not actually faster!
             nproc = np.min([NCPUS, len(FLD)])
             Epool = multiprocessing.Pool(nproc)
-            MFLD = Epool.map(partial(add_mask, mask_var=mask_var), FLD)
+            MFLD = Epool.map(partial(add_mask, mask_var=mask_var, GIOPS=GIOPS), FLD)
             Epool.close()
             Epool.join()
         else:
             MFLD=[]
             for mFLD in FLD:
-                MFLD.append(add_mask(mFLD, mask_var=mask_var))
+                MFLD.append(add_mask(mFLD, mask_var=mask_var, GIOPS=GIOPS))
     elif ( FLD.ndim == 2 ):
         MFLD = np.ma.array(FLD, mask=1-tmask[0,:,:])
     elif ( FLD.ndim == 3 ):
@@ -402,33 +423,8 @@ def add_mask(FLD, mask_var='tmask', mp=False):
     else:
         MFLD=None
     return MFLD
- 
-def do_ducts_for_fcst(date, lhr, expt='OPER', mindepth=10.0, maxdepth=10.0, ddir=mir5, pdir='GEPS_SC'):    
-    date_str=check_date.check_date(date, dtlen=10)
-    lead_str=str(lhr).zfill(3)
-    date=check_date.check_date(date, outtype=datetime.datetime)
-    date=check_date.add_utc(date)
-    
-    depthT, lone, late, ECFLD, ETFLD, ESFLD = read_cspeed_fcst(date, lhr, expt=expt, ddir=ddir, exec=True)
-    #print(type(ECFLD[0]), ECFLD[0].shape, ECFLD[0].mask)
-    #print(type(ETFLD[0]), ETFLD[0].shape, ETFLD[0].mask)
-    #print(type(ESFLD[0]), ESFLD[0].shape, ESFLD[0].mask)
-    del(ETFLD, ESFLD)   # unless decide they are needed
-    ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True)
-    print('PDuct', np.max(PDuct))
-    del(ETorF, EMDep, PVar)
-    outfile=pdir+'/'+'Pduct_'+date_str+'_'+lead_str
-    title='Probability of shallow duct '+date_str+' lead '+lead_str
-    print('SHAPE', lone.shape, late.shape, PDuct.shape)
-    cmap='seismic'
-    cmap='RdYlBu_r'
-    NA_REG =[-90, 15, 30, 65] 
-    cplot.msk_grd_pcolormesh(lone, late, PDuct, np.logical_not(PDuct.mask).astype(int), ddeg=0.1, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'.sp.png', project='PlateCarree', obar='horizontal', cmap=cmap, title=title, make_global=True, addmask=True)
-    cplot.pcolormesh(lone, late, PDuct, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'_NP.png', project='NorthPolarStereo', obar='horizontal', box=[-180, 180, 50, 90], cmap=cmap)
-    cplot.msk_grd_pcolormesh(lone, late, PDuct, np.logical_not(PDuct.mask).astype(int), ddeg=0.1, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'_NAtl.png', project='Mercator', obar='horizontal', box=NA_REG, cmap=cmap, addmask=True)
-    return
 
-def find_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, ensembles=[]):
+def find_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, ensembles=[], GIOPS=True):
     print('EMSEMBLES', ensembles, type(ensembles))
     date_str=check_date.check_date(date)
     date=check_date.check_date(date, outtype=datetime.datetime)
@@ -439,15 +435,15 @@ def find_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdept
         if ( anal_diff != 0 ): 
             print("SHOULD NOT BE HERE")
             return
-    depthT, lone, late, ECFLD, ETFLD, ESFLD = read_cspeed_date(date, expt=expt, ddir=ddir, anal=anal, ensembles=ensembles)
+    depthT, lone, late, ECFLD, ETFLD, ESFLD = read_cspeed_date(date, expt=expt, ddir=ddir, anal=anal, ensembles=ensembles, GIOPS=GIOPS)
     del(ETFLD, ESFLD)   # unless decide they are needed
     if ( not isinstance(depthT, type(None) ) ):
-        ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True)
+        ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True, GIOPS=GIOPS)
     else:
         ETorF, EMDep, PDuct, PVar = None, None, None, None
     return ETorF, EMDep, PDuct, PVar
 
-def do_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, pdir='GIOPS_TC',ensembles=[]):
+def do_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, pdir='GIOPS_TC',ensembles=[], GIOPS=True):
     date_str=check_date.check_date(date)
     date=check_date.check_date(date, outtype=datetime.datetime)
     date=check_date.add_utc(date)
@@ -458,7 +454,7 @@ def do_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=
             print("SHOULD NOT BE HERE")
             return
 
-    ETorF, EMDep, PDuct, PVar = find_ducts_for_date(date, anal=anal, expt=expt, mindepth=mindepth, maxdepth=maxdepth, ddir=ddir, ensembles=ensembles)
+    ETorF, EMDep, PDuct, PVar = find_ducts_for_date(date, anal=anal, expt=expt, mindepth=mindepth, maxdepth=maxdepth, ddir=ddir, ensembles=ensembles, GIOPS=GIOPS)
     del(ETorF, EMDep, PVar)
     AN='T'
     if ( anal ): AN='A'
@@ -475,7 +471,7 @@ def do_ducts_for_date(date, anal=False, expt='GIOPS_T', mindepth=10.0, maxdepth=
     #cplot.pcolormesh(lone, late, PDuct, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'_NAtl.png', project='Mercator', obar='horizontal', box=NA_REG, cmap=cmap)
     return
 
-def do_ducts_for_cycle(this_date, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, pdir='GIOPS_TC', ensembles=[]):
+def do_ducts_for_cycle(this_date, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0, ddir=mir5, pdir='GIOPS_TC', ensembles=[], GIOPS=True):
     this_date=check_date.check_date(this_date, outtype=datetime.datetime)
     this_date=check_date.add_utc(this_date)
     anal_date, anal_diff = find_nearest_analysis(this_date)
@@ -485,12 +481,34 @@ def do_ducts_for_cycle(this_date, expt='GIOPS_T', mindepth=10.0, maxdepth=100.0,
     for idate in range(7):
        date = this_date - datetime.timedelta(days=idate) 
        print(date, 'expt = ', expt, 'mindepth =', mindepth, 'maxdepth = ', maxdepth, 'ddir = ', ddir, 'pdir = ', pdir)
-       do_ducts_for_date(date, anal=False, expt=expt, mindepth=mindepth, maxdepth=maxdepth, ddir=ddir, pdir=pdir, ensembles=ensembles)
+       do_ducts_for_date(date, anal=False, expt=expt, mindepth=mindepth, maxdepth=maxdepth, ddir=ddir, pdir=pdir, ensembles=ensembles, GIOPS=GIOPS)
        if ( idate == 0 ):
            do_ducts_for_date(date, anal=True, expt=expt, mindepth=mindepth, maxdepth=maxdepth, ddir=ddir, pdir=pdir, ensembles=ensembles)
     return
 
  
+def do_ducts_for_fcst(date, lhr, expt='OPER', mindepth=10.0, maxdepth=10.0, ddir=mir5, pdir='GEPS_SC'):    
+    date_str=check_date.check_date(date, dtlen=10)
+    lead_str=str(lhr).zfill(3)
+    date=check_date.check_date(date, outtype=datetime.datetime)
+    date=check_date.add_utc(date)
+    
+    depthT, lone, late, ECFLD, ETFLD, ESFLD = read_cspeed_fcst(date, lhr, expt=expt, ddir=ddir, exec=True)
+    del(ETFLD, ESFLD)   # unless decide they are needed
+    ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True, GIOPS=True)
+    print('PDuct', np.max(PDuct))
+    del(ETorF, EMDep, PVar)
+    outfile=pdir+'/'+'Pduct_'+date_str+'_'+lead_str
+    title='Probability of shallow duct '+date_str+' lead '+lead_str
+    #print('SHAPE', lone.shape, late.shape, PDuct.shape)
+    cmap='seismic'
+    cmap='RdYlBu_r'
+    NA_REG =[-90, 15, 30, 65] 
+    cplot.msk_grd_pcolormesh(lone, late, PDuct, np.logical_not(PDuct.mask).astype(int), ddeg=0.1, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'.sp.png', project='PlateCarree', obar='horizontal', cmap=cmap, title=title, make_global=True, addmask=True)
+    cplot.pcolormesh(lone, late, PDuct, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'_NP.png', project='NorthPolarStereo', obar='horizontal', box=[-180, 180, 50, 90], cmap=cmap)
+    cplot.msk_grd_pcolormesh(lone, late, PDuct, np.logical_not(PDuct.mask).astype(int), ddeg=0.1, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), outfile=outfile+'_NAtl.png', project='Mercator', obar='horizontal', box=NA_REG, cmap=cmap, addmask=True)
+    return
+
 def do_ducts_for_fcstdate(date, lds=range(1,33,1), expt='E1Y25EP1', mindepth=10.0, maxdepth=100.0, ddir=hir6, pdir='CSPEED/GENERIC', ensembles=[]):
     if ( isinstance(lds, numbers.Number) ): lds=[lds]
     date_str=check_date.check_date(date)
@@ -504,11 +522,8 @@ def do_ducts_for_fcstdate(date, lds=range(1,33,1), expt='E1Y25EP1', mindepth=10.
         lead_str=str(lday).zfill(2)
         lhrs_str=str(lhr).zfill(3)
         depthT, lone, late, ECFLD, ETFLD, ESFLD = read_ensemble_forecast.get_ensemble_cspeed(expt, date, lhr, ddir=ddir)
-        print(lday, type(ECFLD[0]), ECFLD[0].shape, ECFLD[0].mask)
-        print(lday, type(ETFLD[0]), ETFLD[0].shape, ETFLD[0].mask)
-        print(lday, type(ESFLD[0]), ESFLD[0].shape, ESFLD[0].mask)
         del(ETFLD, ESFLD)   # unless decide they are needed
-        ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True)
+        ETorF, EMDep, PDuct, PVar = find_mins_ens (ECFLD, depth=depthT, mindepth=mindepth, maxdepth=maxdepth, mp_depth=False, bySea=True, mp_ensemble=True, GIOPS=True)
         del(ETorF, EMDep, PVar)
         outfile=pdir+'/'+'Pduct_'+date_str+'_'+lhrs_str
         title='Probability of shallow duct valid for '+fcst_date_str+' at lead '+lead_str+' day from date '+date_str
@@ -519,6 +534,76 @@ def do_ducts_for_fcstdate(date, lds=range(1,33,1), expt='E1Y25EP1', mindepth=10.
         cplot.pcolormesh(lone, late, PDuct, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), title=title, outfile=outfile+'_NP.png', project='NorthPolarStereo', obar='horizontal', box=[-180, 180, 50, 90], cmap=cmap)
         cplot.msk_grd_pcolormesh(lone, late, PDuct, np.logical_not(PDuct.mask).astype(int), ddeg=0.1, levels=np.arange(0,1.1,0.1), ticks=np.arange(0.05,1.0,0.1), title=title, outfile=outfile+'_NAtl.png', project='Mercator', obar='horizontal', box=NA_REG, cmap=cmap, addmask=True)
     return
+
+def calc_class4_A_duct(date, expt, ddir=mir5, min_lat=-100, GIOPS=True):
+
+    if ( GIOPS ):
+        lonn, latn, orca_area = read_grid.read_coord()
+    else:
+        lonn, latn, orca_area = read_grid.read_coord_riops()
+
+    # The comparison with model should be with the analysis (or forecast) over that date.  Timestamp day+1
+    datestr=check_date.check_date(date, outtype=str)
+    dateint=int(datestr)
+    adate = date + datetime.timedelta(days=1)
+    YY, MM, DD = date.year, date.month, date.day
+    LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.read_EN4_day(YY,MM,DD)
+
+    anal_date, anal_diff = find_nearest_analysis(adate)
+    if ( anal_diff != 0 ):
+        print('Not an analysis cycle date', date)
+
+    if ( min_lat > -90 ):
+        ILAT=read_EN4.find_in_latitudes(LAT, [min_lat, 90])
+        LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], ILAT)
+    IBTH=read_EN4.find_both_valid_TS(QT, QS)
+    LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], IBTH)
+    IDEP=read_EN4.remove_minimum_depth(DEP, QT, min_depth=100.0)
+    LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], IDEP)
+
+    CW = soundspeed.sound_speed(DEP, SW, TW)
+    TorF_list = find_mins_obs(CW, DEP, mp=False)
+    TorF_narr = np.array(TorF_list).astype(int)
+    IJPTS=find_value_at_point.find_nearest_point_list(LON, LAT, lonn, latn, mp=False)
+
+    __, __, Pduct, __ = find_ducts_for_date(adate, anal=False, expt='GIOPS_T', ddir=ddir, ensembles=list(range(1,21)), GIOPS=GIOPS)
+    if ( GIOPS ):
+        Nmask = read_grid.read_mask()[0]
+    else:
+        Nmask = read_grid.read_riops_mask()[0]
+
+    Pduct_list=[]
+    for ijpt in IJPTS:
+        Pduct_list.append(Pduct[ijpt])
+        Mduct_list.append(Nmask[ijpt])
+
+    imsked = read_EN4.find_indices(Mduct_list, 0)
+    ivalid = read_EN4.find_indices(Mduct_list, 1)
+
+    LON_narr = LON[ivalid]
+    LAT_narr = LAT[ivalid]
+    TorF_narr = np.array(TorF_list).astype(int)[ivalid]
+    Pduct_narr=np.array(Pduct_list)[ivalid]
+    Mduct_narr=np.array(Mduct_list)[ivalid]
+
+    BRSC=np.sum( np.square(Pduct_narr - TorF_narr) )
+    nobs=len(TorF_narr)
+    print('Brier Scores BRSC', BRSC)
+    
+    SPRD = np.sum( Pduct_narr * ( 1-Pduct_narr) )
+    print('Spread Values SPRD', SPRD)
+    
+    class4_file='CSPEED/CLASS4/class4_'+expt+'_'+datestr+'.nc'
+    variables=['lon', 'lat', 'obs', expt]
+    fields=[LON_narr, LAT_narr, TorF_narr, Pduct_narr]
+    for ifield, field in enumerate(fields):
+        print('SHAPE', variables[ifield], field.shape)
+    write_nc_grid.write_nc_1d(fields, variables, class4_file)
+    
+    ddate_file='CSPEED/CLASS4/'+expt+'_PDUCT_date.dat'
+    datadatefile.add_to_file(dateint, np.array([float(nobs), BRSC, BRAN, BRM1, BRS1, BRGD, BRLG, BRCL, SPRD, SPAN, SPM1, SPS1, SPGD, SPLG, SPCL]), file=ddate_file)
+
+    return BRSC, SPRD
 
 def calc_class4_duct(date, ddir=mir5):
 
@@ -634,7 +719,7 @@ def calc_class4_duct(date, ddir=mir5):
 syndir='/home/saqu500/data_maestro/ppp5/maestro_archives/SynObs' 
 outdir='/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/CSPEED/SYNOBS1'
 def calc_class4_duct_SYNOBS(date, dirlist=syndir, keylist=['CNTL', 'Free', 'NoArgo', 'HalfArgo', 'NoInsitu', 'NoMoor', 'NoSST', 'Oper', 'SSTonly', 'NoAlt'], 
-       explist=None, enslist='d', anllist=False, odir=outdir):
+       explist=None, enslist='d', anllist=False, glolist=True, latsin=[-90, 90], odir=outdir):
 
     print('KEYLIST', keylist)
     if ( isinstance(explist, type(None)) ): expdict=dict(zip(keylist, keylist))
@@ -655,6 +740,14 @@ def calc_class4_duct_SYNOBS(date, dirlist=syndir, keylist=['CNTL', 'Free', 'NoAr
     if ( isinstance(anllist, list) ): anldict=dict(zip(keylist, anllist))
     if ( isinstance(anllist, dict) ): anldict=anllist
     
+    if ( isinstance(glolist, type(None)) ): glodict=dict(zip(keylist, [True]*len(keylist)))
+    if ( isinstance(glolist, bool) ): glodict=dict(zip(keylist, [glolist]*len(keylist)))
+    if ( isinstance(glolist, list) ): glodict=dict(zip(keylist, glolist))
+    if ( isinstance(glolist, dict) ): glodict=glolist
+
+    if ( isinstance(latsin, float) or isinstance(latsin, int) ):
+        latsin = [float(latsin), 90.0]
+           
     # The comparison with model should be with the analysis (or forecast) over that date.  Timestamp day+1
     datestr=check_date.check_date(date, outtype=str)
     dateint=int(datestr)
@@ -664,42 +757,62 @@ def calc_class4_duct_SYNOBS(date, dirlist=syndir, keylist=['CNTL', 'Free', 'NoAr
 
     anal_date, anal_diff = find_nearest_analysis(adate)
 
+    print("LATSIN", latsin)
+    if ( ( not isinstance(latsin, type(None)) ) and ( not (latsin == [-90, 90] ) ) ):
+        print("Subsetting OBS by latitude", latsin)
+        ILAT=read_EN4.find_in_latitudes(LAT, latsin)
+        LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], ILAT)
     IBTH=read_EN4.find_both_valid_TS(QT, QS)
     LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], IBTH)
     IDEP=read_EN4.remove_minimum_depth(DEP, QT, min_depth=100.0)
     LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS = read_EN4.replace_list_of_array([LON, LAT, DEP, DAT, JUL, TW, SW, QT, QS], IDEP)
+    LON_narr = LON
+    LAT_narr = LAT
 
     CW = soundspeed.sound_speed(DEP, SW, TW)
-    TorF_list = find_mins_obs(CW, DEP, mp=False)
-    TorF_narr = np.array(TorF_list).astype(int)
-    IJPTS=find_value_at_point.find_nearest_point_list(LON, LAT, lonn, latn, mp=False)
-    
+    TorF_LIST = find_mins_obs(CW, DEP, mp=False)
+    TorF_narr = np.array(TorF_LIST).astype(int)
+
     Probs = dict(zip(keylist, [None]*len(keylist)))
     BRSCs = dict(zip(keylist, [None]*len(keylist)))
     SPRDs = dict(zip(keylist, [None]*len(keylist)))
-    
-    Nmask = read_grid.read_mask()[0]
-    Mduct_list=[]
-    for ijpt in IJPTS:
-        Mduct_list.append(Nmask[ijpt])
-    imsked = read_EN4.find_indices(Mduct_list, 0)
-    ivalid = read_EN4.find_indices(Mduct_list, 1)
-    LON_narr = LON[ivalid]
-    LAT_narr = LAT[ivalid]
 
-    TorF_narr = np.array(TorF_list).astype(int)[ivalid]
-    Mduct_narr=np.array(Mduct_list)[ivalid]
-
+    #IJPTS_list = []
+    #Nmask_list = []
+    #Mduct_list = []
     for akey in keylist:
+        is_GIOPS = glodict[akey]
+        if ( is_GIOPS ):
+            lonn, latn, orca_area = read_grid.read_coord()
+            Nmask = read_grid.read_mask()[0]
+        else:
+            lonn, latn, orca_area = read_grid.read_coord_riops()
+            Nmask = read_grid.read_riops_mask()[0]
+        IJPTS=find_value_at_point.find_nearest_point_list(LON, LAT, lonn, latn, mp=False)
+        
+        Mduct_LIST=[]
+        for ijpt in IJPTS:
+            Mduct_LIST.append(Nmask[ijpt])
+        imsked = read_EN4.find_indices(Mduct_LIST, 0)
+        ivalid = read_EN4.find_indices(Mduct_LIST, 1)
+        #LON_narr = LON[ivalid]
+        #LAT_narr = LAT[ivalid]
+
+        #TorF_narr = np.array(TorF_LIST).astype(int)[ivalid]
+        #Mduct_narr=np.array(Mduct_LIST)[ivalid]
+
         print('INPUTS', akey, anldict[akey], expdict[akey], dirdict[akey], ensdict[akey])
-        __, __, Pduct, __ = find_ducts_for_date(adate, anal=anldict[akey], expt=expdict[akey], ddir=dirdict[akey], ensembles=ensdict[akey])
+        __, __, Pduct, __ = find_ducts_for_date(adate, anal=anldict[akey], expt=expdict[akey], ddir=dirdict[akey], ensembles=ensdict[akey], GIOPS=is_GIOPS, )
         #Probs[akey] = Pduct
         Pduct_list = []
         for ijpt in IJPTS:
             Pduct_list.append(Pduct[ijpt])
-        Pduct_narr=np.array(Pduct_list)[ivalid]
-        BRSC=np.sum( np.square(Pduct_narr - TorF_narr) )
-        SPRD = np.sum( Pduct_narr * ( 1-Pduct_narr) )
+        Pduct_narr=np.array(Pduct_list)
+        Pduct_narr=np.ma.array(Pduct_narr, mask=np.zeros(Pduct_narr.shape))
+        Pduct_narr[imsked] = np.NaN
+        Pduct_narr.mask[imsked] = True
+        BRSC=np.nansum( np.square(Pduct_narr - TorF_narr) )
+        SPRD = np.nansum( Pduct_narr * ( 1-Pduct_narr) )
         Probs[akey] = Pduct_narr
         BRSCs[akey] = BRSC
         SPRDs[akey] = SPRD
@@ -727,13 +840,13 @@ def calc_class4_duct_cycle(date):
     return
 
 def calc_class4_duct_SYNOBS_cycle(date, dirlist=syndir, keylist=['CNTL', 'Free', 'NoArgo', 'HalfArgo', 'NoInsitu', 'NoMoor', 'NoSST', 'Oper', 'SSTonly', 'NoAlt'], 
-                                  explist=None, enslist='d', anllist=False, odir=outdir):
+                                  explist=None, enslist='d', anllist=False, glolist=True, latsin=None, odir=outdir):
     print('KEYLIST', keylist)
     date1=date - datetime.timedelta(days=7)
     date2=date - datetime.timedelta(days=1)
     dates=rank_histogram.create_dates(date1, date2, 1)
     for cdate in dates:
-        Probs, BRSCs, SPRDs  = calc_class4_duct_SYNOBS(cdate, dirlist=dirlist, keylist=keylist, explist=explist, enslist=enslist, anllist=anllist, odir=odir)
+        Probs, BRSCs, SPRDs  = calc_class4_duct_SYNOBS(cdate, dirlist=dirlist, keylist=keylist, explist=explist, enslist=enslist, anllist=anllist, glolist=glolist, latsin=latsin, odir=odir)
         print(BRSCs)
     return
 

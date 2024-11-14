@@ -268,6 +268,54 @@ def write_nc_1d(fields, variables, file):
     print('*** SUCCESS writing ncfile file '+file+'!')
     return rc
 
+def write_nc_1dm(fields, variables, file):
+    rc = 0
+    # open a new netCDF file for writing.
+    ncfile = netCDF4.Dataset(file,'w') 
+    ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
+    n = 1
+    for field in fields:
+      if ( field.ndim == 2 ):
+        (n, N) = field.shape
+      else:
+        N = len(field)
+      print('Initial Shape',n,N)
+    if ( n > 1 ):
+      ncfile.createDimension('n',n)
+    ncfile.createDimension('N',N)
+    # create the variable (4 byte integer in this case)
+    # first argument is name of variable, second is datatype, third is
+    # a tuple with the names of dimensions.
+
+    nf=len(fields)    
+    nv=len(variables)    
+    # Error control on length of fields/variables.
+    if ( nf != nv ):
+       print('Error -- incompatible lengths', len(fields), len(variables))
+       
+    data=[]
+    for ifield in range(nf):
+        field = fields[ifield]
+        n=1
+        if ( field.ndim == 2 ):
+          (n, N) = field.shape
+        else:
+          N = len(field)
+        variable=variables[ifield]
+        if ( n > 1 ):
+          data.append(ncfile.createVariable(variable,np.dtype('float').char,('n','N')))
+        else:
+          data.append(ncfile.createVariable(variable,np.dtype('float').char,('N')))
+        # write data to variable.
+        ##NOTE:  FIELDS with be output in netcdf as (ny, nx)!!!
+        print('SHAPE', field.shape, n, N)
+        data[ifield][:] = field
+    # close the file.
+    ncfile.close()
+    print('*** SUCCESS writing ncfile file '+file+'!')
+    return rc
+
+
 def read_nc_1d(file, variables):
     dataset = netCDF4.Dataset(file)
     print(file, dataset)

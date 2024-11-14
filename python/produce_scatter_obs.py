@@ -1,0 +1,150 @@
+#from importlib import reload
+import sys
+import os
+import traceback
+sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
+import datetime
+import numpy as np
+import pandas as pd
+
+import matplotlib.pyplot as plt
+import matplotlib.colors as clr
+import cartopy.crs as ccrs
+
+import cplot
+import check_date
+import read_DF_VP
+
+ola_file='/home/saqu500/data/ppp5/maestro_archives/SynObs/CNTLV2/SAM2/20200101/DIA/2020010100_SAM.ola'
+
+VP_SETS = {
+  'ALL'  : [  0, 'VP_GEN_INSITU_GEN'],
+  'AR80' : [ 22, 'VP_GEN_INSITU_PR_PF_80'],
+  'AR40' : [ 22, 'VP_GEN_INSITU_PR_PR_40'],
+  'ARRF' : [ 23, 'VP_GEN_INSITU_PR_PF_RF'],
+  'AR20' : [ 23, 'VP_GEN_INSITU_PR_PF_RF'],
+  'BS'   : [ 24, 'VP_GEN_INSITU_PR_BA'],
+  'CT'   : [ 25, 'VP_GEN_INSITU_PR_CT'],
+  'GL'   : [ 26, 'VP_GEN_INSITU_PR_GL'],
+  'ML'   : [ 27, 'VP_GEN_INSITU_PR_ML'],
+  'TE'   : [ 28, 'VP_GEN_INSITU_PR_TE'],
+  'XB'   : [ 29, 'VP_GEN_INSITU_PR_XB'],
+  'XX'   : [ 30, 'VP_GEN_INSITU_PR_XX'],
+  'SM'   : [ 31, 'VP_GEN_INSITU_PR_SM'],
+  'PR'   : [ 32, 'VP_GEN_INSITU_PR_TX'],
+  'DB'   : [ 33, 'VP_GEN_INSITU_TS_DB'],
+  'FB'   : [ 34, 'VP_GEN_INSITU_TS_FB'],
+  'MO'   : [ 35, 'VP_GEN_INSITU_TS_MO'],
+  'TG'   : [ 36, 'VP_GEN_INSITU_TS_TG'],
+  'TS'   : [ 37, 'VP_GEN_INSITU_TS_TS'],
+  'OT'   : [ [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37], 'OTHER']
+         }
+
+
+
+#VP = read_DF_VP.VP_dataframe(ola_file, subset=0)
+    
+def ini_scatter(project='PlateCarree'):
+    fig = plt.figure()
+    projections, pcarree = cplot.make_projections()
+    axe = plt.subplot(projection=projections[project])
+    axe.set_global()
+    axe.coastlines()
+    return fig, axe
+
+    
+def add_scatter(fig, axe, df, color='k', label='ALL', s=5):  
+    lon = df.lon.values  
+    lat = df.lat.values
+    scat = axe.scatter(x=lon.flatten(), y=lat.flatten(), c=color, s=s, alpha=0.5, transform=ccrs.PlateCarree(), marker='s',label=label)
+    return scat
+
+
+def fin_scatter(fig, axe, title='TITLE', output='scatter.png'):
+   axe.legend()
+   axe.set_title(title)
+   fig.savefig(output, bbox_inches='tight')
+   plt.close(fig)
+   return
+   
+     
+def make_dataframes(file=ola_file):
+    VP_DAT = {}
+    for VPid in VP_SETS.keys():
+        setid=VP_SETS[VPid][0]
+        VP_DAT[VPid] = read_DF_VP.VP_dataframe(file, subset=setid)
+    return VP_DAT
+
+date_ref=datetime.datetime(1950,1,1,0,0)
+def subset_df_by_date(df, date=datetime.date(2019, 12, 31)):
+    if ( isinstance(df, dict) ):
+        new_df = {}
+        for i_df in df.keys():
+            new_df[i_df] = subset_df_by_date(df[i_df], date=date) 
+        return new_df
+    if ( df.empty ): return df
+    ddate = [ date_ref + datetime.timedelta(days=days) for days in df['date']]
+    idate = [ ( adate.date() == date ) for adate in ddate]
+    new_df = df[idate]
+    return new_df
+
+def subset_df_by_exist(df, var='voT'):
+    if ( isinstance(df, dict) ):
+        new_df = {}
+        for i_df in df.keys():
+            new_df[i_df] = subset_df_by_exist(df[i_df], var=var) 
+        return new_df
+    if ( df.empty ): return df
+    df_new = df[np.isfinite(df[var].values)]
+    return df_new
+
+def subset_df_by_depth(df, depth=500, var='depth_T'):
+    if ( isinstance(df, dict) ):
+        new_df = {}
+        for i_df in df.keys():
+            new_df[i_df] = subset_df_by_depth(df[i_df], depth=depth, var=var) 
+        return new_df
+    if ( df.empty ): return df
+    df_tmp = df[np.isfinite(df[var].values)]
+    df_new = df_tmp[ df_tmp[var] > depth ]
+    return df_new
+
+date=datetime.date(2020, 1, 1)
+def scatter_obs_for_day(date, pdir='OBSS/'):
+    date=check_date.check_date(date, outtype=datetime.date)
+    days_anal = 7 - ((date.weekday() - 2)%7)
+    date_anal = date + datetime.timedelta(days=days_anal)
+    date_astr = date_anal.strftime("%Y%m%d")
+    date_dstr = date.strftime("%Y%m%d")
+
+    DDIR='/home/saqu500/data/ppp5/maestro_archives/SynObs/'
+    EXPT='CNTLV2'
+    ola_file=DDIR+EXPT+'/SAM2/'+date_astr+'/DIA/'+date_astr+'00_SAM.ola'
+    print(ola_file)
+
+    VP_DAT = make_dataframes(file=ola_file)
+    VP_DAY = subset_df_by_date(VP_DAT, date=date )
+    VP_TEM = subset_df_by_exist(VP_DAY, var='voT')
+
+    for iV, V in enumerate(['T', 'S', 'T', 'S']):
+        VP_VAR = subset_df_by_exist(VP_DAY, var='vo'+V)
+        if ( iV > 1 ):  VP_VAR = subset_df_by_depth(VP_VAR, depth=500, var='depth_'+V)
+        fig, axe = ini_scatter()
+        scat1=add_scatter(fig, axe, VP_VAR['AR80'], color='b', label='ARGO ASSIM')
+        scat2=add_scatter(fig, axe, VP_VAR['ARRF'], color='r', label='ARGO REF')
+        scat3=add_scatter(fig, axe, VP_VAR['MO'], color='g', label='MOORINGS')
+        scat4=add_scatter(fig, axe, VP_VAR['OT'], color='orange', label='OTHER TS')
+        outfile=pdir+'/'+V+'observations_'+date_dstr+'.png'
+        title=V+' Observations for '+date_dstr
+        if ( iV > 1 ): 
+            outfile=pdir+'/'+V+'observations500m_'+date_dstr+'.png'
+            title=V+' Observations for '+date_dstr+' > 500m'
+        fin_scatter(fig, axe, title=title, output=outfile)
+    return
+
+def scatter_obs_for_year(year, pdir='OBSS/'):
+    date=datetime.date(year,1,1)
+    while date < datetime.date(year+1,1,1) :
+        scatter_obs_for_day(date, pdir=pdir)
+        date = date + datetime.timedelta(days=1)
+    return

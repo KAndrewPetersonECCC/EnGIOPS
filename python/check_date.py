@@ -30,7 +30,7 @@ def check_date(date, outtype=str, dtlen=8):
       if ( len(datestr) > dtlen ):
           datestr=datestr[:dtlen]
     if ( outtype ==int ): datestr=int(datestr)
-    if ( outtype== datetime.datetime ):
+    if ( ( outtype == datetime.datetime ) or ( outtype == datetime.date) ):
       if ( isinstance(date, int) ): date=str(date)
       if ( isinstance(date, str) and ( len(date) == 8 ) ):
         datestr=datetime.datetime.strptime(date, '%Y%m%d')  
@@ -42,6 +42,7 @@ def check_date(date, outtype=str, dtlen=8):
         datestr=datetime.datetime.strptime(date, '%Y%m%d%H%M%S')  
       if ( isinstance(date, datetime.datetime) ): datestr=date
       if ( isinstance(date, datetime.date) ): datestr=datetime.datetime(*date.timetuple()[:4])
+      if ( outtype == datetime.date ): datestr=datestr.date()
     if ( isinstance(datestr, type(None) ) ): print('No valid conversion offered', date)
     return datestr
 

@@ -1,6 +1,7 @@
 #from importlib import reload
 import sys
 import os
+import traceback
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
 import datetime
 import numpy as np
@@ -44,6 +45,9 @@ intconvfac=10000.0
 cmap_anom = 'seismic'
 cmap_zero = 'RdYlBu_r'
 cmap_posd = 'gist_stern_r'
+
+Tvars = ['voT','vfT','misfitT','sqrerrT', 'ensvarT', 'ensvvoT', 'ensvvfT', 'crpsT', 'depth_T']
+Svars = ['voS','vfS','misfitS','sqrerrS', 'ensvarS', 'ensvvoS', 'ensvvfS', 'crpsS', 'depth_S']
 
 
 def get_mdir(n, user='dpe000', rpn='rpnenv', grp='mrd'):
@@ -204,7 +208,21 @@ def add_squared_error(df_VP):
 
 def add_crps_VP(df_EaVP, df_EnVP):
     df_crps = calc_crps_VP(df_EnVP)
-    df_NU = pd.concat([pd.concat([df_EaVP, df_crps['crpsT']],axis=1),df_crps['crpsS']],axis=1)
+    if ( 'crpsT' in df_crps.keys() ): 
+        print('T KEYS', df_EnVP.keys(), df_crps.keys())
+        df_NUT = df_EaVP[['lon', 'lat', 'date']+[ x for x in Tvars if x !='crpsT' ]]
+        df_NUT = pd.concat([df_NUT, df_crps['crpsT']], axis=1)
+    else:
+        df_NUT = init_df()
+    if ( 'crpsS' in df_crps.keys() ): 
+        print('S KEYS', df_EaVP.keys(), df_crps.keys())
+        df_NUS = df_EaVP[['lon', 'lat', 'date']+[ x for x in Svars if x !='crpsS' ]]
+        df_NUS = pd.concat([df_NUS, df_crps['crpsS']], axis=1)
+    else:
+        df_NUS = init_df()
+    print("LENGTH NUX", len(df_NUT), len(df_NUS))
+    df_NU = pd.concat([df_NUT, df_NUS])
+    print("LENGTH NU", len(df_NU))
     return df_NU
         
 def calc_crps_VP(df_EnVP):
@@ -228,6 +246,7 @@ def calc_crps_VP(df_EnVP):
     else:
         CRPS_S = init_df()
 
+    print("LENGTH CRPS", len(CRPS_T), len(CRPS_S))
     df_crps = pd.concat([CRPS_T, CRPS_S])
     return df_crps
 
@@ -262,9 +281,6 @@ def calc_crps(ens, obs):
         ens=ens.flatten()
     crps = ps.crps_ensemble(obs, ens)
     return(crps)
-
-Tvars = ['voT','vfT','misfitT','sqrerrT', 'ensvarT', 'ensvvoT', 'ensvvfT', 'crpsT','depth_T']
-Svars = ['voS','vfS','misfitS','sqrerrS', 'ensvarS', 'ensvvoS', 'ensvvfS', 'crpsS','depth_S']
 
 def average_over_depth(df_EaVP):
     if ( isinstance( df_EaVP, list ) ): # then assume already isolated into T/S dataframes
@@ -749,6 +765,11 @@ def plot_profiles_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', ma
         plot_profile_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths, noensstat=noensstat, nostdstat=nostdstat)
     return
     
+def plot_profiles_norm_multi(df_profile_list, labels, title='', outpre='PLOTS/Ex', maxdepths=[200, 500, 2000], noensstat=False, nostdstat=False):
+    for ifld, fld in enumerate(['T','S']):
+        plot_profile_norm_multi([df_profiles[ifld] for df_profiles in df_profile_list], labels, fld, outpre=outpre, maxdepths=maxdepths, noensstat=noensstat, nostdstat=nostdstat)
+    return
+    
 def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False, nostdstat=False):
     flabel = 'Temperature (\N{degree sign}C)'
     if ( fld=='S'): flabel = 'Salinity (PSU)'
@@ -871,6 +892,119 @@ def plot_profile_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], 
 
     return
 
+    
+def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 2000], outpre='PLOTS/Ex', noensstat=False, nostdstat=False):
+    flabel = 'Temperature (\N{degree sign}C)'
+    if ( fld=='S'): flabel = 'Salinity (PSU)'
+    nexpts = len(df_profile_list) - 1
+    title = fld+'-profile'
+    dvar = 'depth_'+fld
+    if ( ( not isinstance(maxdepths, list) ) and ( not isinstance(maxdepths, tuple) ) ): maxdepths=[maxdepths]
+    
+    colors = ['b', 'g', 'c', 'm', 'r']    
+
+    expt_elementsL = []
+    expt_elementsD = []
+    lines = [ 'rmse', 'sprd', 'crps', 'stde' ]
+    these_lines = lines.copy()
+    if ( noensstat ):
+        these_lines = [ 'mean', 'rmse', 'stde' ]
+    if ( nostdstat ):
+        these_lines.remove('stde')    
+
+    nlines = len(these_lines)
+    figA = []; axeA=[]
+    for this_plot in these_lines:
+        figL, axeL = plt.subplots()
+        axeL.axvline(x=0, color='k', linestyle='-')
+        figD=[]; axeD=[]
+        for maxdepth in maxdepths:
+            fig, axe = plt.subplots()
+            axe.axvline(x=0, color='k', linestyle='-')
+            figD.append(fig); axeD.append(axe)
+        figA.append([figL]+figD), axeA.append([axeL]+axeD)
+
+    expt_elementsA=[]
+    for ip, df_profile in enumerate(df_profile_list[1:]):
+        lwidth=1
+        if ( ip == 0 ): lwidth=3
+        label = labels[ip]
+        color = colors[(ip-1)%5]
+        depth = df_profile[dvar].values
+        merr = df_profile['misfit'+fld].values
+        rmse = df_profile['sqrerr'+fld].values
+        crps = df_profile['crps'+fld].values
+        evar = df_profile['ensvar'+fld].values
+        estd = df_profile['ensvar'+fld].values
+        stde = np.sqrt(rmse - np.square(merr) ) 
+        rmse = np.sqrt(rmse)
+        estd = np.sqrt(estd)
+        if ( ip == 0 ):
+          ref_errors = [ rmse, estd, crps, stde] 
+          ref_rmse = rmse
+          ref_estd = estd
+          ref_crps = crps
+          ref_stde = stde 
+        else:
+          errors = [rmse/ref_rmse, estd/ref_estd, crps/ref_crps, stde/ref_stde]
+        these_lines = lines
+        if ( ip > 0 ):
+            for lina in these_lines:
+                iline=lines.index(lina)
+                axeL = axeA[iline][0]
+                figL = figA[iline][0]
+                ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, linewidth=lwidth, color=color, label=label)
+                expt_elementsL.append(ll)
+                expt_elementsd=[]
+                for iplot, maxdepth in enumerate(maxdepths):
+                    axeD = axeA[iline][iplot+1]
+                    figD = figA[iline][iplot+1]
+                    lt, = axeD[iplot].plot( errors[iline], depth, linewidth=lwidth, linestyle=linestyle, color=color, label=label)
+                    expt_elementsd.append(lt)
+                expt_elementsD.append(expt_elementsd)
+            expt_elementsA.append([expt_elementsL]+expt_elementsD)
+
+    for lina in these_lines:
+        expt_elementsL = expt_elementsA[lina][0]
+        expt_elementsD = expt_elementsA[lina][1:]
+        expt_legendL = axeL.legend(handles=expt_elementsL, loc='upper right')
+        line_legendL = axeL.legend(handles=line_elementsL, loc='lower right')
+        axeL.set_title(title)
+        axeL.add_artist(expt_legendL)
+        axeL.add_artist(line_legendL)
+        axeL.invert_yaxis()
+        axeL.set_xlabel(flabel)
+        axeL.set_ylabel('depth (m)')
+        figL.savefig(outpre+fld+'profile_'+lina+'.png')
+        figL.savefig(outpre+fld+'profile_'+lina+'.pdf')
+        plt.close(figL)
+
+        for iplot, maxdepth in enumerate(maxdepths):
+            mstr=str(maxdepth)
+            expt_elements = [ expt_elementsD[iexpt][iplot] for iexpt in range(nexpts) ]
+            line_elements = [ line_elementsD[iline][iplot] for iline in range(nlines) ]
+            if ( maxdepth > 200 ):
+                locexpt='center right'
+                locline='lower right'
+            else:
+                locexpt='center'
+                locline='lower center'
+            
+            expt_legendD = axeD[iplot].legend(handles=expt_elements, loc=locexpt)
+            line_legendD = axeD[iplot].legend(handles=line_elements, loc=locline)
+            axeD[iplot].set_title(title)
+            axeD[iplot].add_artist(expt_legendD)
+            axeD[iplot].add_artist(line_legendD)
+            axeD[iplot].set_ylim([0, maxdepth])
+            axeD[iplot].invert_yaxis()
+            axeD[iplot].set_xlabel(flabel)
+            axeD[iplot].set_ylabel('depth (m)')
+            figD[iplot].savefig(outpre+fld+'profile_'+lina+'_'+mstr+'m.png')
+            figD[iplot].savefig(outpre+fld+'profile_'+lina+'_'+mstr+'m.pdf')
+            plt.close(figD[iplot])
+
+    return
+
 def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
    if ( isinstance(binF, list) or isinstance(binF, tuple) ): 
        for ibinF in binF:
@@ -905,6 +1039,8 @@ def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
            varn='merr'+vari[6]
            LEVS=np.arange(-0.9,0.9,0.2)
            cmap=cmap_anom
+       if ( vari[0:5] == 'count' ):
+            cmap=cmap_pdef
        if ( ( vari[0:2] == 'vo' ) or ( vari[0:2] == 'vf' ) ):
            varn=vari
            if ( vari[2] == 'T' ):
@@ -968,15 +1104,17 @@ def plot_diff_field(bin1, bin2, drop=['ensvvo', 'ensvvf', 'vf', 'vo'], titpre=''
            varn='rmse'+vari[6]
        if ( vari[0:6] == 'ensvar' ):
            varn='estd'+vari[6]
-       cmap = cmap_posd
+       cmap = cmap_anom
        LEVS = np.arange(-0.9, 1.1, 0.2)
+       if ( vari[0:5] == 'count' ):
+            LEVS = None
        #print('TITLE', titpre, len(titpre))
        if ( len(titpre) > 0 ):
            title=titpre+' '+varn
        else:
            title=varn+' difference'
        outfile=outpre+varn+'.png'
-       cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal')
+       cplot.bin_pcolormesh(lon_bin, lat_bin, fldd_values, title=title, levels=LEVS, ddeg=DELTA, outfile=outfile, obar='horizontal', cmap=cmap)
    return
 
 def process_expt(dates, expt, ens_passed, this_ddir, mp_read=True, mp_date=False, subset=0):
@@ -1079,11 +1217,21 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
     print("FINISHED CYCLE THROUGH ALL EXPERIMENT DATES")
     outpreoutg=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+'Global'+'_'
     plot_profiles_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat, nostdstat=nostdstat)
+    try:
+        plot_profiles_norm_multi(gl_list, labels, title='Global', outpre=outpreoutg, noensstat=noensstat, nostdstat=nostdstat)
+    except:
+        print(traceback.print_exc())
+        print("FAILURE of NORM PROFILES")
     for iarea, area in enumerate(PAREAS.keys()):
         reg_list = [ rgs_series[iarea] for rgs_series in rgs_list ]
         title=area
         outpreouta=outdirpre+outdir[0] +'/'+'Profiles_'+datestrr+'_'+area+'_'
         plot_profiles_multi(reg_list, labels, title=title, outpre=outpreouta, noensstat=noensstat, nostdstat=nostdstat)
+        try:
+            plot_profiles_norm_multi(reg_list, labels, title=title, outpre=outpreouta, noensstat=noensstat, nostdstat=nostdstat)
+        except:
+            print(traceback.print_exc())
+            print("FAILURE of NORM PROFILES")
     print("FINISHED PROFILE PLOTS")
 
     for ilevel, level in enumerate(Levels):

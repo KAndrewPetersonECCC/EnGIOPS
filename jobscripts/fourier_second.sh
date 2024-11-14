@@ -48,6 +48,23 @@ except:
     print("RETRYING WITH NONE",'Tsppt')
     fourier_analysis.cycle_dates_done(None, var='Tsppt', indir='BOX/', outdir='BOX/')
 
+try:
+    fourier_analysis.cycle_dates_done(dates, var='MLD', indir='BOX/', outdir='BOX/')
+except:
+    print("RETRYING WITH NONE",'MLD')
+    fourier_analysis.cycle_dates_done(None, var='MLD', indir='BOX/', outdir='BOX/')
+
+try:
+    fourier_analysis.cycle_dates_done(dates, var='SST', indir='BOX/', outdir='BOX/')
+except:
+    print("RETRYING WITH NONE",'SST')
+    fourier_analysis.cycle_dates_done(None, var='SST', indir='BOX/', outdir='BOX/')
+
+try:
+    fourier_analysis.cycle_dates_done(dates, var='T', indir='BOX/', outdir='BOX/')
+except:
+    print("RETRYING WITH NONE",'SST')
+    fourier_analysis.cycle_dates_done(None, var='T', indir='BOX/', outdir='BOX/')
 
 skip = True
 if ( not skip ):

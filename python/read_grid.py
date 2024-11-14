@@ -57,6 +57,16 @@ def read_mask(var='tmask', hall=hall):
     mask=np.moveaxis(mask, [0, 1, 2], [0, 2, 1])
     dataset.close()
     return mask
+    
+def read_riops_mask(var='tmask'):
+    dire='/home/fdu000/data/ppp5/backup/maestro/creg12h08b/sorties/CREG12/NEMO_MESH_MASK/'
+    file=dire+'/mesh_mask.nc'
+    #print('Mask file = '+ file)
+    dataset = netCDF4.Dataset(file) 
+    mask=np.squeeze(dataset.variables[var][:])
+    mask=np.moveaxis(mask, [0, 1, 2], [0, 2, 1])
+    dataset.close()
+    return mask
 
 def vars_in_mesh(hall=hall):
     site='/space/'+hall+'/sitestore'
@@ -83,6 +93,34 @@ def read_mesh_var(var, hall=hall):
 def read_coord_mesh(hall=hall,grid='T'):
     site='/space/'+hall+'/sitestore'
     dire=site+'/eccc/mrd/rpnenv/dpe000/NEMO_MESH_MASK'
+    file=dire+'/mesh_mask.nc'
+    #print('Mesh Mask file = ', file)
+    dataset = netCDF4.Dataset(file) 
+    if ( grid == 'T' ):
+        e1t=np.transpose( np.squeeze(dataset.variables['e1t'][:]) )
+        e2t=np.transpose( np.squeeze(dataset.variables['e2t'][:]) )
+        nav_lon=np.transpose( np.squeeze(dataset.variables['nav_lon'][:]) )
+        nav_lat=np.transpose( np.squeeze(dataset.variables['nav_lat'][:]) )
+    if ( grid == 'U' ):
+        e1t=np.transpose( np.squeeze(dataset.variables['e1u'][:]) )
+        e2t=np.transpose( np.squeeze(dataset.variables['e2u'][:]) )
+        nav_lon=np.transpose( np.squeeze(dataset.variables['glamu'][:]) )
+        nav_lat=np.transpose( np.squeeze(dataset.variables['gphiu'][:]) )
+    if ( grid == 'V' ):
+        e1t=np.transpose( np.squeeze(dataset.variables['e1v'][:]) )
+        e2t=np.transpose( np.squeeze(dataset.variables['e2v'][:]) )
+        nav_lon=np.transpose( np.squeeze(dataset.variables['glamv'][:]) )
+        nav_lat=np.transpose( np.squeeze(dataset.variables['gphiv'][:]) )
+    if ( grid == 'F' ):
+        e1t=np.transpose( np.squeeze(dataset.variables['e1f'][:]) )
+        e2t=np.transpose( np.squeeze(dataset.variables['e2f'][:]) )
+        nav_lon=np.transpose( np.squeeze(dataset.variables['glamf'][:]) )
+        nav_lat=np.transpose( np.squeeze(dataset.variables['gphif'][:]) )
+    dataset.close()
+    return nav_lon, nav_lat, e1t*e2t
+
+def read_coord_riops(hall=hall,grid='T'):
+    dire='/home/fdu000/data/ppp5/backup/maestro/creg12h08b/sorties/CREG12/NEMO_MESH_MASK/'
     file=dire+'/mesh_mask.nc'
     #print('Mesh Mask file = ', file)
     dataset = netCDF4.Dataset(file) 

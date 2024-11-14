@@ -1,5 +1,5 @@
 #!/bin/bash -x
-#ord_soumet /home/dpe000/EnGIOPS/jobscripts/analysis_VP_SynObsV3.sh -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash
+#ord_soumet /home/dpe000/EnGIOPS/jobscripts/analysis_VP_SynObsVS.sh -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash
 
 WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
@@ -21,37 +21,32 @@ import datetime
 import read_DF_VP
 import rank_histogram
 
-datep = rank_histogram.create_dates(20200101, 20211201, 7)
 datet = rank_histogram.create_dates(20200101, 20230104, 7)
 
-orig = ['CNTLV2', 'NoArgoV2', 'NoMoorV2', 'HalfArgoV2', 'Oper', 'CNTLV2', 'NoSSTV2', 'SSTonly', 'NoAltV2', 'NoInsituV3', 'Free']
-labe = ['CNTL',   'NoArgo',   'NoMoor',   'HalfArgo',   'Oper', 'CNTL',   'NoSST',   'SSTonly', 'NoAlt',   'NoInsitu',   'Free']
-
-oria = ['CNTLV2', 'NoArgoV2', 'NoMoorV2', 'HalfArgoV2', 'Oper', 'Free']
-laba = ['CNTL',   'NoArgo',   'NoMoor',   'HalfArgo',   'Oper', 'Free']
-orib = ['CNTLV2', 'NoSSTV2', 'SSTonlyV3', 'NoAltV2', 'NoInsituV3', 'Free']
-labb = ['CNTL',   'NoSST',   'SSTonly',   'NoAlt',   'NoInsitu',   'Free']
-oric = ['CNTLV2', 'NoArgoV2', 'NoMoorV2', 'HalfArgoV2']
-labc = ['CNTL',   'NoArgo',   'NoMoor',   'HalfArgo']
-orid = ['CNTLV2', 'NoSSTV2', 'SSTonlyV3', 'NoAltV2', 'NoInsituV3']
-labd = ['CNTL',   'NoSST',   'SSTonly',   'NoAlt',   'NoInsitu']
-orie = ['CNTLV2', 'NoArgoV2', 'HalfArgoV2', 'NoMoorV2', 'NoInsituV3', 'CNTLV2_NoBIAS_correction']
-labe = ['CNTL',   'NoArgo',   'HalfArgo',   'NoMoor',   'NoInsitu', 'NoBias']
-
-
-exptss=[orig, oria, orib, oric, orid, orie]
-labess=[labe, laba, labb, labc, labd, labe]
-dirlabel=['v3Z_', 'v3A_', 'v3B_', 'z3A_', 'z3B_', 'v3C']
+oria = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAlt', 'Free']
+laba = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Altimeter', 'Free']
+orib = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoMoorV2', 'Free']
+labb = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Moorings', 'Free']
+oric = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAlt', 'Free']
+labc = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Altimeter', 'Free']
+orid = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoMoorV2', 'Free']
+labd = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Moorings', 'Free']
+orie = ['NoInsituV3', 'NoArgoV2', 'NoMoorV2']
+labe = ['No Insitu',  'No Argo',  'No Moorings'] 
+orif = ['NoInsituV3', 'NoArgoV2', 'NoMoorV2']
+labf = ['No Insitu',  'No Argo',  'No Moorings'] 
+exptss=[oria, orib, oric, orid, orie, orif]
+labess=[laba, labb, labc, labd, labe, labf]
+subsss=[23, 23, 35, 35, 23, 25]
+dirlabel=['vSA23_', 'vSA23_', 'vSB35_', 'vSB35_', 'vSC23_', 'vSC35_']
 datess=[datet, datet, datet, datet, datet, datet]
 
 sub_exptss = exptss.copy()
-sub_exptss = [orie, oric, orid, oria, orib, orig]
+sub_exptss = [oria, orib, oric, orid, orie, orif]
 for iexpts, expts  in enumerate(sub_exptss):
     jexpts = exptss.index(expts)
     print('jexpts', jexpts)
-    subset=0
-    if ( expts == oric ): subset=23
-    if ( expts == orid ): subset=23
+    subset=subsss[jexpts]
     outdirpre=dirlabel[jexpts]
     dates=datess[jexpts]
     nexpt=len(expts)

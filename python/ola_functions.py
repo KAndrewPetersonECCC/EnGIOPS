@@ -238,12 +238,12 @@ def VP_dataframe(input_file):
         
     if (nv != maxMVS*5+7):  
         print('Wrong dimension: nv in rga_VP', nv, maxMVS)
-        return df_g
+        #return df_g
     
     #if (ni != maxMVS*2+10):   # for GIOPSv2
     if (ni != maxMVS*2+11):   # for GIOPSv3
-        print('Wrong dimension: ni in iga_VP', ni. maxMVS)
-        return df_g
+        print('Wrong dimension: ni in iga_VP', ni, maxMVS)
+        #return df_g
 
     #Initialization
     df_g = pd.DataFrame(np.nan, index=[], columns=[])

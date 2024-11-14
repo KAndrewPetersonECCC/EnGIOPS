@@ -15,6 +15,8 @@ InDir=None
 ExpList=None
 EnsList="'-d'"
 AnlList=False
+GloList=True
+LatList=None
 
 #dlist=['/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/kch001/data_maestro/ppp6/maestro_archives/IC4_final_cycles/controle', '/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/kch001/data_maestro/ppp6/maestro_archives/IC4_final_cycles/controle']
 #keylist=['IC4','CTL','IC4_l', 'CTL_l']
@@ -151,6 +153,26 @@ if [[ ${InDir} == SynObsE3 ]] ; then
     EnsList="'l'"
     AnlList=False
 fi
+if [[ ${InDir} == SynObs4 ]] ; then
+    APPD=".SO4"
+    SynObs=True
+    OutDir="'/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/CSPEED/SYNOBS4'"
+    InDir="'/home/saqu500/data_maestro/ppp5/maestro_archives/SynObs'"
+    KeyList="['CNTLV2', 'Free', 'NoArgoV2', 'HalfArgoV2', 'NoInsituV3', 'NoMoorV2', 'NoSSTV2', 'Oper', 'SSTonlyV3', 'NoAltV2']"
+    ExpList="${KeyList}"
+    EnsList="'d'"
+    AnlList=False
+fi
+if [[ ${InDir} == SynObsE4 ]] ; then
+    APPD=".SOE4"
+    SynObs=True
+    OutDir="'/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/CSPEED/SYNOBSE4'"
+    InDir="'/home/saqu500/data_maestro/ppp5/maestro_archives/SynObs'"
+    KeyList="['CNTLV2', 'Free', 'NoArgoV2', 'HalfArgoV2', 'NoInsituV3', 'NoMoorV2', 'NoSSTV2', 'Oper', 'SSTonlyV3', 'NoAltV2']"
+    ExpList="${KeyList}"
+    EnsList="'l'"
+    AnlList=False
+fi
 if [[ ${InDir} == IC4_A ]] ; then
     APPD=".A"
     SynObs=True
@@ -170,6 +192,18 @@ if [[ ${InDir} == IC4_B ]] ; then
     ExpList="['GX35FCH22V2', 'IC4GX340EH22-CTR','GX35FCH22V2', 'IC4GX340EH22-CTR']"
     EnsList="['d','d','l','l']"
     AnlList=False
+fi
+if [[ ${InDir} == RIOPS ]] ; then 
+    APPD=".R"
+    SynObs=True
+    OutDir="'/fs/site5/eccc/mrd/rpnenv/dpe000/EnGIOPS/CSPEED/RIOPS'"
+    InDir="['/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/sprj700/data_maestro/ppp6/maestro_archives']"
+    KeyList="['RIOPS','GIOPS','RIOPS_l', 'GIOPS_l']"
+    ExpList="['RXFC24H22V1', 'GX35FCH22V2', 'RXFC24H22V1', 'GX35FCH22V2']"
+    EnsList="['d','d','l','l']"
+    AnlList=False
+    GloList="[False, True, False, True]"
+    LatList=45
 fi
 echo "KEYLIST ${KeyList}"
 
@@ -212,8 +246,10 @@ if ( ${SynObs} ):
     enslist=${EnsList}
     anllist=${AnlList}
     dirlist=${InDir}
+    glolist=${GloList}
+    latlist=${LatList}
     print('KEYLIST', keylist)
-    find_cspeed_maxmin.calc_class4_duct_SYNOBS_cycle(date, keylist=keylist, odir=${OutDir}, dirlist=dirlist, explist=explist, enslist=enslist, anllist=anllist)
+    find_cspeed_maxmin.calc_class4_duct_SYNOBS_cycle(date, keylist=keylist, odir=${OutDir}, dirlist=dirlist, explist=explist, enslist=enslist, anllist=anllist, glolist=glolist, latsin=latlist)
 else:
     print('Class4')
     find_cspeed_maxmin.calc_class4_duct_cycle(date)

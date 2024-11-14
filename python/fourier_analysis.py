@@ -849,6 +849,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
 
     K05 = []  
     KMN = []
+    BRT = []
     iLT = [ [] for LAT in LATS]
     #LATP = [-90, -60, -20, 20, 60, 90]
     LATP = [-75, -45, -15, 15, 45, 75]
@@ -880,6 +881,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         else:
             K05.append(kwave[0])
         KMN.append(kwave[1:][imn])
+        BRT.append(RAT[imn])
+        
 
     for ii, LAT in enumerate(LATS):
         print('IQUERY', iLT[ii])
@@ -888,12 +891,14 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     #print(K05)
     K05 = np.array(K05)
     KMN = np.array(KMN)
+    BRT = np.array(BRT)
     PSM = np.mean(psd_mean, axis=0)
     PSE = np.mean(psd_memb, axis=0)
     iPSM = [np.zeros(kwave.shape)]*len(LATS)
     iPSE = [np.zeros(kwave.shape)]*len(LATS)
     iK05 = [0]*len(LATS)
     iKMN = [0]*len(LATS)
+    iBRT = [0]*len(LATS)
     iLAT = LATS.copy()
     jPSM = [np.zeros(kwave.shape)]*nlatp
     jPSE = [np.zeros(kwave.shape)]*nlatp
@@ -903,6 +908,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         iPSE[ilat] = np.mean(psd_memb[iLT[ilat], :], axis=0)
         iK05[ilat] = len(iLT[ilat])/sum(K05[iLT[ilat]])  # reciprocate to a wavelength here
         iKMN[ilat] = len(iLT[ilat])/sum(KMN[iLT[ilat]])  # reciprocate to a wavelength here
+        iBRT[ilat] = sum(BRT[iLT[ilat]])/len(iLT[ilat])
         iLAT[ilat] = sum([ np.mean(GRIDS[ilt][1]) for ilt in iLT[ilat] ])/len(iLT[ilat])
         #iLAT[ilat] = sum([ np.mean(GRID[1]) for GRID in GRIDS[iLT[ilat]] ])/len(iLT[ilat])
     for jlat in range(nlatp):
@@ -913,12 +919,14 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     VLAT = []
     VK05 = []
     VKMN = []
+    VBRT = []
     for ilat, LAT in enumerate(LATS):
         print(ibox, 'MIDLAT', GLAT, LAT, midLAT)
         if ( len(iLT[ilat]) > 0 ):
             VLAT.append(iLAT[ilat])
             VK05.append(iK05[ilat])
             VKMN.append(iKMN[ilat])
+            VBRT.append(iBRT[ilat])
                       
     fig, ax = plt.subplots()
     #ax.plot(date_list, KT05, linestyle='--', label='Ratio = 0.5')
@@ -1058,6 +1066,11 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH[izero] = 0.0
     print('Max/mean length MN', np.max(LENGTH), np.mean(LENGTH))
     ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0)
+
+    #KFN = BRT[:]
+    #LENGTH = KFN
+    print('Min/Max/mean ratio', np.min(BRT), np.max(BRT), np.mean(BRT))
+    ctile.cplot_tiles(BOXES, BRT, SCALE=[0, 0.4], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXRT_'+oar+'.png', alpha=1.0)
 
     print('COMPLETED PLOTING')
     return kwave, psd_mean, psd_memb, K05

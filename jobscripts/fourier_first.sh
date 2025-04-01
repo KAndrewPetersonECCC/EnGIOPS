@@ -35,7 +35,8 @@ WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
 
 #for VAR in SST T SSU SSV MLD U15 V15 TAUX TAUY Tsppt Ssppt; do 
-for VAR in TAUX TAUY ; do 
+#for VAR in TAUX TAUY ; do 
+for VAR in R75 ; do 
 
 BJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.sh
 PJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.py

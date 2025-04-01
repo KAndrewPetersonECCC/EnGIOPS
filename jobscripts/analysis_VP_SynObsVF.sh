@@ -22,8 +22,9 @@ import read_DF_VP
 import rank_histogram
 
 datet = rank_histogram.create_dates(20200101, 20230104, 7)
+datew = rank_histogram.create_dates(20211020, 20220330, 7)
 
-oria = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAlt',        'Free']
+oria = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAltV2',        'Free']
 laba = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Altimeter', 'Free']
 orib = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'SSTonlyV3', 'Free']
 labb = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'SST only',  'Free']
@@ -33,13 +34,15 @@ orid = ['Free', 'NoArgoV2', 'NoMoorV2', 'NoInsituV3', 'HalfArgoV2', 'CNTLV2']
 labd = ['Free', 'No Argo', 'No Moorings', 'NoInSitu', 'HalfArgoV2', 'CNTL'] 
 orie = ['NoInsituV3', 'NoArgoV2', 'NoMoorV2']
 labe = ['No InSitu',  'No Argo',  'No Moorings'] 
-exptss=[oria, orib, oric, orid, orie]
-labess=[laba, labb, labc, labd, labe]
-dirlabel=['vFA_', 'vFB_', 'vFC_', 'vFD_', 'vFE_']
-datess=[datet, datet, datet, datet, datet, datet]
+orif = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAltV2',        'Free']
+labf = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Altimeter', 'Free']
+exptss=[oria, orib, oric, orid, orie, orif]
+labess=[laba, labb, labc, labd, labe, labf]
+dirlabel=['vFA_', 'vFB_', 'vFC_', 'vFD_', 'vFE_', 'vFF_']
+datess=[datet, datet, datet, datet, datet, datew]
 
 sub_exptss = exptss.copy()
-sub_exptss = [orid, orie, oria, orib, oric]
+sub_exptss = [oria, orib, oric, orid, orie, orif]
 for iexpts, expts  in enumerate(sub_exptss):
     jexpts = exptss.index(expts)
     print('jexpts', jexpts)

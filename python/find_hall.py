@@ -4,6 +4,7 @@ def get_host():
     host=subprocess.check_output('hostname')
     if ( not isinstance(host, str) ): host=host.decode('utf-8')
     return host   
+
 def find_hall():
     host=get_host()
     #print('HOST = '+ host)
@@ -22,6 +23,8 @@ def find_hall():
     if ( host[0:5] == 'hpcr4' ): hall='hall4'
     if ( host[0:4] == 'ppp5' ): hall='hall5'
     if ( host[0:4] == 'ppp6' ): hall='hall6'
+    if ( host[0:5] == 'hpcr5' ): hall='hall5'
+    if ( host[0:5] == 'hpcr6' ): hall='hall6'
     return hall
 
 def get_main_host(hall=None):

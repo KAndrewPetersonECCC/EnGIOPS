@@ -973,7 +973,7 @@ def calc_class4_duct_stats(dates, ddir='CSPEED/CLASS4/', pdir='CSPEED/CLASS4/PLO
 
 def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free', 'NoArgo', 'HalfArgo', 'NoInsitu', 'NoMoor', 'NoSST', 'Oper', 'SSTonly', 'NoAlt'], 
                                ddir='CSPEED/SYNOBS/', pdir='CSPEED/SYNOBS/PLOTS/', filesuf='dates', ddeg=10.0,
-                               levels=np.arange(-0.45, 0.5, 0.1), ticks=np.arange(-0.4, 0.5, 0.1)):
+                               levels=np.arange(-0.45, 0.5, 0.1), ticks=np.arange(-0.4, 0.5, 0.1), check_masked=False):
     
     iref=keylist.index(reference)
     nflds=len(keylist)
@@ -1000,8 +1000,15 @@ def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free',
     IBAD = np.where( np.square(all_obs) > 1 )
     IGOD = np.where( np.square(all_obs) < 1.01 ) 
     SUPER_LIST = read_EN4.replace_list_of_array(SUPER_LIST, IGOD)
+    if ( check_masked ):
+        for ivar in range(len(keylist)):
+            IBAD = np.where( SUPER_LIST[3+ivar].mask == True )
+            IGOD = np.where( SUPER_LIST[3+ivar].mask == False )
+            SUPER_LIST = read_EN4.replace_list_of_array(SUPER_LIST, IGOD)
+            print( keylist[ivar], len(IBAD[0]))
+            #if ( len(IBAD[0]) > 0 ) : print(keylist[ivar], INPUT_list[ivar][IBAD])
     [all_lon, all_lat, all_obs] = SUPER_LIST[0:3]
-    print('obs', np.min(all_obs), np.mean(all_obs), np.max(all_obs))
+    print('obs', np.min(all_obs), np.mean(all_obs), np.max(all_obs), np.sum(all_obs))
     SUPER_LIST = SUPER_LIST[3:]
     BRIER_LIST = brier_all(SUPER_LIST, all_obs)
     BRS_REF = BRIER_LIST[iref]   # DO NOT pop reference
@@ -1069,11 +1076,13 @@ def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free',
 
 
     # Remove binned results where number of observations is less then 50
-    BRIER_LIST = remove_from_bin(BRIER_LIST, summed_count_OBS, 50)
-    PROBL_LIST = remove_from_bin(PROBL_LIST, summed_count_OBS, 50)
-    binned_brier_REF = remove_from_bin(binned_brier_REF, summed_count_OBS, 50)
-    binned_brier_OBS = remove_from_bin(binned_brier_OBS, summed_count_OBS, 50)
-    binned_probl_OBS = remove_from_bin(binned_probl_OBS, summed_count_OBS, 50)
+    obs_threshold = 50
+    obs_threshold = 1
+    BRIER_LIST = remove_from_bin(BRIER_LIST, summed_count_OBS, obs_threshold)
+    PROBL_LIST = remove_from_bin(PROBL_LIST, summed_count_OBS, obs_threshold)
+    binned_brier_REF = remove_from_bin(binned_brier_REF, summed_count_OBS, obs_threshold)
+    binned_brier_OBS = remove_from_bin(binned_brier_OBS, summed_count_OBS, obs_threshold)
+    binned_probl_OBS = remove_from_bin(binned_probl_OBS, summed_count_OBS, obs_threshold)
     BRIER_LIST_REF = [binned_brier_REF - binned_brier for binned_brier in BRIER_LIST] 
     BRIER_LIST_CLM = [binned_brier_OBS - binned_brier for binned_brier in BRIER_LIST] 
     PROBL_DIFF = [binned_prob - binned_probl_OBS for binned_prob in PROBL_LIST]
@@ -1221,7 +1230,7 @@ def extend_all(input_list, extend_list):
     nlist = len(input_list)
     output_list = []
     for ilist in range(nlist):
-        output_list.append(np.append(input_list[ilist], extend_list[ilist], axis=0))
+        output_list.append(np.ma.append(input_list[ilist], extend_list[ilist], axis=0))
     return output_list
 
 def brier_all(input_list, obs):

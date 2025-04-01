@@ -10,6 +10,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import matplotlib.cm as cm
+import matplotlib.ticker as mticker 
+
 import cartopy.crs as ccrs
 
 import sys
@@ -71,7 +73,7 @@ def simple_test(BOXES, project='PlateCarree'):
     plt.close(fig)
     return
 
-def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None, alpha=0.65):
+def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None, alpha=0.65, add_gridlines=False, latloc=None, lonloc=None):
     if ( isinstance(SCALE, type(None)) ):
        smin = 0
        smax = max(COLORS)
@@ -81,15 +83,19 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     else: 
       smin = SCALE[0]
       smax = SCALE[1]
+    if ( isinstance(latloc, type(None)) ):
+        latloc = np.arange(-60, 90, 30) 
+    if ( isinstance(lonloc, type(None)) ):
+        lonloc = np.arange(-135, 180, 45) 
     fig = plt.figure()
-    ax = plt.subplot(projection=ccrs.PlateCarree())
+    ax = plt.subplot(projection=projections[project])
     plt.set_cmap(cmap)
     colormap = cm.get_cmap()
     norm = mpl.colors.Normalize(vmin=smin, vmax=smax)
     for ibox, BOX in enumerate(BOXES):
         polygon = sgeometry.Polygon(BOX)
         rgba=colormap(norm(COLORS[ibox]))
-        ax.add_geometries([polygon], crs=ccrs.PlateCarree().as_geodetic(), fc=rgba, ec="red", alpha=alpha)
+        ax.add_geometries([polygon], crs=projections[project].as_geodetic(), fc=rgba, ec="red", alpha=alpha)
 
     sm = cm.ScalarMappable(cmap=colormap)
     #sm._A = COLORS
@@ -100,6 +106,22 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     if ( not isinstance(ticks, type(None)) ):
         cb.set_ticks(ticks)
     ax.coastlines()
+    
+    if ( not isinstance(landcolor, type(None) ) ):
+        ax.add_feature(cfeature.NaturalEarthFeature('physical', 'land', '10m', edgecolor='k', facecolor=landcolor, alpha=0.4))
+
+    if add_gridlines:
+        gl = ax.gridlines(crs=projections[project], linewidth=1, color='darkmagenta', alpha=0.75, linestyle='--', draw_labels=True)
+        gl.xlabels_top = False
+        gl.ylabels_left = False
+        gl.ylabels_right=True
+        gl.xlines = True
+        gl.xlocator = mticker.FixedLocator(lonloc)
+        gl.ylocator = mticker.FixedLocator(latloc)
+        #gl.xformatter = LONGITUDE_FORMATTER
+        #gl.yformatter = LATITUDE_FORMATTER
+        gl.xlabel_style = {'color': 'black', 'weight': 'normal'}
+        gl.xyabel_style = {'color': 'black', 'weight': 'normal'}
     fig.savefig(outfile,bbox_inches='tight')
     plt.close(fig)
 
@@ -110,5 +132,5 @@ def test():
     BOXES, GRIDS, LATS = create_BOXES()
     COLORS = 100 * np.random.rand(len(BOXES))
     tile_patches(BOXES, COLORS, cmap='seismic', project='PlateCarree', outfile='pile.png')
-    cplot_tiles(BOXES, COLORS, SCALE=100, cmap=cmap_test, project='PlateCarree', outfile='tile.png', alpha=1.0)
+    cplot_tiles(BOXES, COLORS, SCALE=100, cmap=cmap_test, project='PlateCarree', outfile='tile.png', alpha=1.0, )
     return

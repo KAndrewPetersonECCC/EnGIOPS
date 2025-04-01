@@ -11,10 +11,15 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import cartopy.crs as ccrs
 
+import multiprocessing
+from functools import partial
+import itertools
+
 import cplot
 import check_date
 import read_DF_VP
 
+num_cpus = len(os.sched_getaffinity(0))
 ola_file='/home/saqu500/data/ppp5/maestro_archives/SynObs/CNTLV2/SAM2/20200101/DIA/2020010100_SAM.ola'
 
 VP_SETS = {
@@ -143,8 +148,26 @@ def scatter_obs_for_day(date, pdir='OBSS/'):
     return
 
 def scatter_obs_for_year(year, pdir='OBSS/'):
-    date=datetime.date(year,1,1)
+    date=datetime.date(year,10,1)
     while date < datetime.date(year+1,1,1) :
         scatter_obs_for_day(date, pdir=pdir)
         date = date + datetime.timedelta(days=1)
+    return
+
+def scatter_obs_for_range_mp(start, final, pdir='OBSS/'):
+    start_date=check_date.check_date(start, outtype=datetime.date)
+    final_date=check_date.check_date(final, outtype=datetime.date)
+    dates=[]
+    date=start_date
+    while date <= final_date :
+        #scatter_obs_for_day(date, pdir=pdir)\
+        dates.append(date)
+        date = date + datetime.timedelta(days=1)
+    nproc=np.min([num_cpus, len(dates)])
+    loop_pool = multiprocessing.Pool(nproc)
+    izip = list(zip(dates))
+    None_list = loop_pool.starmap(partial(scatter_obs_for_day, pdir=pdir), izip)
+    loop_pool.close()
+    loop_pool.join()
+    
     return

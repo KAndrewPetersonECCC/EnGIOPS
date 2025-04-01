@@ -53,11 +53,11 @@ Nmask = read_grid.read_mask()[0]
 Probs, BRSCs, SPRDs = find_cspeed_maxmin.calc_class4_duct_SYNOBS(check_date.check_date(20200101,outtype=datetime.datetime))
 
 date=datetime.datetime(2020,1,8)
-find_cspeed_maxmin.calc_class4_duct_SYNOBS_cycle(date)
+#find_cspeed_maxmin.calc_class4_duct_SYNOBS_cycle(date)
 
 date=datetime.datetime(2020,1,8)
 date=datetime.datetime(2021,6,9)
-find_cspeed_maxmin.calc_class4_duct_cycle(date)
+#find_cspeed_maxmin.calc_class4_duct_cycle(date)
 
 
 dlist=['/home/sprj700/data_maestro/ppp6/maestro_archives', '/home/kch001/data_maestro/ppp6/maestro_archives/IC4_final_cycles/controle']
@@ -80,29 +80,29 @@ keylist=['CNTLV2', 'Free', 'NoArgoV2', 'HalfArgoV2', 'NoInsituV3', 'NoMoorV2', '
 
 levels=np.arange(-0.095, 0.1, 0.01)
 ticks=np.arange(-0.09, 0.10, 0.02)
-find_cspeed_maxmin.calc_class4_duct_stats_key(dates, reference='CNTLV2', keylist=keylist, ddir='CSPEED/SYNOBS3/', pdir='CSPEED/SYNOBS3/PLOTS', filesuf='3years', levels=levels, ticks=ticks)
+#find_cspeed_maxmin.calc_class4_duct_stats_key(dates, reference='CNTLV2', keylist=keylist, ddir='CSPEED/SYNOBS3/', pdir='CSPEED/SYNOBS3/PLOTS', filesuf='3years', levels=levels, ticks=ticks)
 
 dates=rank_histogram.create_dates(20200108, 20210615, 1)+rank_histogram.create_dates(20210825, 20211109, 1)
 keylist=['CNTLV2', 'Free', 'NoArgoV2', 'HalfArgoV2', 'NoInsituV2', 'NoMoorV2', 'NoSSTV2', 'Oper', 'SSTonlyV2', 'NoAltV2']
 
 levels=np.arange(-0.095, 0.1, 0.01)
 ticks=np.arange(-0.09, 0.10, 0.02)
-find_cspeed_maxmin.calc_class4_duct_stats_key(dates, reference='CNTLV2', keylist=keylist, ddir='CSPEED/SYNOBSE2/', pdir='CSPEED/SYNOBSE2/PLOTS', filesuf='2021', levels=levels, ticks=ticks)
+#find_cspeed_maxmin.calc_class4_duct_stats_key(dates, reference='CNTLV2', keylist=keylist, ddir='CSPEED/SYNOBSE2/', pdir='CSPEED/SYNOBSE2/PLOTS', filesuf='2021', levels=levels, ticks=ticks)
 
 keylist=['Oper', 'CNTLV2', 'Free', 'NoAltV2']
 
 levels=np.arange(-0.095, 0.1, 0.01)
 ticks=np.arange(-0.09, 0.10, 0.02)
-find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='Oper', keylist=keylist, ddir='CSPEED/SYNOBS3/', pdir='CSPEED/SYNOBS3/PLOT1', filesuf='all_dates', levels=levels, ticks=ticks)
+find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='Oper', keylist=keylist, ddir='CSPEED/SYNOBS3/', pdir='CSPEED/SYNOBS3/PLOT2', filesuf='all_dates', levels=levels, ticks=ticks)
 
 keylist=['IC4', 'CTL']
 levels=np.arange(-0.095, 0.1, 0.01)
 ticks=np.arange(-0.09, 0.10, 0.02)
-find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='CTL', keylist=keylist, ddir='CSPEED/IC4_A/', pdir='CSPEED/IC4_A/PLOTS', filesuf='all_dates', levels=levels, ticks=ticks)
+#find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='CTL', keylist=keylist, ddir='CSPEED/IC4_A/', pdir='CSPEED/IC4_A/PLOTS', filesuf='all_dates', levels=levels, ticks=ticks)
 
 keylist=['IC4', 'CTL', 'IC4_l', 'CTL_l']
 levels=np.arange(-0.095, 0.1, 0.01)
 ticks=np.arange(-0.09, 0.10, 0.02)
-find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='CTL_l', keylist=keylist, ddir='CSPEED/IC4_B/', pdir='CSPEED/IC4_B/PLOTS', filesuf='all_dates', levels=levels, ticks=ticks)
+#find_cspeed_maxmin.calc_class4_duct_stats_key(None, reference='CTL_l', keylist=keylist, ddir='CSPEED/IC4_B/', pdir='CSPEED/IC4_B/PLOTS', filesuf='all_dates', levels=levels, ticks=ticks)
 
 EOD

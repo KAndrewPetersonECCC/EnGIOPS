@@ -292,14 +292,14 @@ def read_ensemble(datadir, ens_pre, date, fld='T', file_pre='ORCA025-CMC-ANAL_1d
           else:
               datestd=yearstr+date_anal.strftime("%m%d")
 
-        print( ens_pre, ensstr, datestd)        
+        #print( ens_pre, ensstr, datestd)        
         if  ( isinstance(date_anal, type(None)) ):
             file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr+'.nc'
         else:
             file=datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+datestr[:8]+'-'+datestr[:8]+'.nc'
         if ( fld == 'TAUX' or fld == 'TAUY' ):
             file=glob.glob(datadir+'/'+ens_pre+ensstr+'/SAM2/'+datestd+'/'+'DIA/'+file_pre+grid+'_'+'*'+'.nc')[0]
-        print(file)
+        #print(file)
         if ( fld == 'U15' ):
             lon, lat, FLD10 = read_sam2_grid(file, fld='u10')
             lon, lat, FLD20 = read_sam2_grid(file, fld='u20')

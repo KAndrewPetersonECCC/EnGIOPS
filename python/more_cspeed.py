@@ -3,6 +3,9 @@ import numpy as np
 import read_SynObsArgo
 import soundspeed
 import find_cspeed_maxmin
+import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cplot
 
 file='/home/dpe000/data/ppp6/SynObs2/5/OP-AN/GIOPS/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_GIOPS_CNTL.nc'
 filf='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/data/synobs_frontiers/OP-AN/FOAM/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_FOAM_CNTL.nc'
@@ -42,7 +45,7 @@ def do_cspeed_expt(inst, expt, start, final, ref="Ref", ddir=ddirS, odir=odird):
     files=[]
     for year in range(startyr, finalyr+1):
         months=range(1,13)
-        monthst=0
+        monthst=1
         monthfi=12
         if ( year == startyr ): monthst=startmn
         if ( year == finalyr ): monthfi=finalmn
@@ -84,9 +87,67 @@ def do_cspeed_expt(inst, expt, start, final, ref="Ref", ddir=ddirS, odir=odird):
     TorF_OBS = np.array(find_cspeed_maxmin.find_mins_obs(C_OBS, depth_tile, mp=False)).astype(int)
     TorF_EXP = np.array(find_cspeed_maxmin.find_mins_obs(C_EXP, depth_tile, mp=False)).astype(int)
 
+    is_true = np.where( TorF_OBS )
+    is_model = np.where( TorF_EXP )
+    is_false = np.where( TorF_OBS == False )
+    is_fcst = np.where( ( TorF_OBS == True ) & ( TorF_EXP == True ) )
+    is_null = np.where( ( TorF_OBS == False ) * ( TorF_EXP == False ) )
+    is_miss = np.where( ( TorF_OBS == True ) & ( TorF_EXP == False ) )
+    is_alarm = np.where( ( TorF_OBS == False ) & ( TorF_EXP == True ) )
+    ntrue, nfalse, nfcst, nnull, nmiss, nalarm = len(is_true[0]), len(is_false[0]), len(is_fcst[0]), len(is_null[0]), len(is_miss[0]), len(is_alarm[0])
     BRSC=np.sum( np.square((TorF_OBS - TorF_EXP)) ) / nobs
-    #print(BRSC)
-    return BRSC
+    MISS=nmiss/nobs
+    ALARM=nalarm/nobs
+    FCST=nfcst/nobs
+    NULL=nnull/nobs
+    print(BRSC, nobs )
+    print(FCST, nfcst, ntrue)
+    print(MISS, nmiss, ntrue)
+    print(NULL, nnull, nfalse)
+    print(ALARM, nalarm, nfalse)
+    trange=f"{start[0]}/{start[1]:02} -- {final[0]}/{final[1]:02}"
+    orange=f"{start[0]}{start[1]:02}-{final[0]}{final[1]:02}"
+    make_scatter([is_fcst, is_miss, is_alarm, is_null], (LONA, LATA), expt=expt, inst=inst, ref=ref, trange=trange, orange=orange)
     
+    return BRSC, MISS, ALARM
+
+def make_scatter(IS_RESULT, LONLAT, expt='EXPT', inst='INST', ref='Ref', trange='', orange=''):
+    [is_fcst, is_miss, is_alarm, is_null] = IS_RESULT
+    nfcst, nnull, nmiss, nalarm = len(is_fcst[0]), len(is_null[0]), len(is_miss[0]), len(is_alarm[0])
+    LONS = LONLAT[0]
+    LATS = LONLAT[1]
+    outfile='CSPEED/SynObsIC/'+inst+'_'+expt+'_'+ref
+    if ( len(orange) > 0 ): outfile=outfile+'_'+orange
+    outfile=outfile+'.png'
+    fig, axe = ini_scatter()
+    add_scatter(fig, axe, (LONS[is_miss], LATS[is_miss]), color='k', marker='.', s=1, label='Null Forecast (neither) = '+str(nnull))
+    add_scatter(fig, axe, (LONS[is_miss], LATS[is_miss]), color='red', marker='o', s=5, label='Missed Forecast (obs only) = '+str(nmiss))
+    add_scatter(fig, axe, (LONS[is_alarm], LATS[is_alarm]), color='magenta', marker='o', s=5, label='False Alarm (model only) = '+str(nalarm))
+    add_scatter(fig, axe, (LONS[is_fcst], LATS[is_fcst]), color='green', marker='o', s=5, label='Forecast hit (obs&fcst) = '+str(nfcst))
+    title='DUCTS for '+expt+'/'+inst
+    if ( len(trange) > 0 ): title=title+' for '+trange
+    fin_scatter(fig, axe, title=title, output=outfile)
+    
+def ini_scatter(project='PlateCarree'):
+    fig = plt.figure()
+    projections, pcarree = cplot.make_projections()
+    axe = plt.subplot(projection=projections[project])
+    axe.set_global()
+    axe.coastlines()
+    return fig, axe
+
+def add_scatter(fig, axe, lonlat, color='k', marker='.', label='ALL', s=5):  
+    lon = lonlat[0]
+    lat = lonlat[1]
+    scat = axe.scatter(x=lon.flatten(), y=lat.flatten(), c=color, s=s, alpha=0.5, transform=ccrs.PlateCarree(), marker=marker, label=label)
+    return scat
+    
+def fin_scatter(fig, axe, title='TITLE', output='scatter.png'):
+   axe.legend(fontsize='x-small')
+   axe.set_title(title)
+   fig.savefig(output, bbox_inches='tight')
+   plt.close(fig)
+   return
+   
     
     

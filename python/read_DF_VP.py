@@ -927,7 +927,6 @@ def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 20
     expt_elementsA=[]
     for ip, df_profile in enumerate(df_profile_list[1:]):
         lwidth=1
-        if ( ip == 0 ): lwidth=3
         label = labels[ip]
         color = colors[(ip-1)%5]
         depth = df_profile[dvar].values
@@ -951,15 +950,17 @@ def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 20
         if ( ip > 0 ):
             for lina in these_lines:
                 iline=lines.index(lina)
-                axeL = axeA[iline][0]
-                figL = figA[iline][0]
-                ll, = axeL.semilogy( errors[iline], depth, linestyle=linestyle, linewidth=lwidth, color=color, label=label)
+                iiline=these_lines.index(lina)
+                print('DEBUG', iiline, iline, len(axeA))
+                axeL = axeA[iiline][0]
+                figL = figA[iiline][0]
+                axeD = axeA[iiline][1:]
+                figD = figA[iiline][1:]
+                ll, = axeL.semilogy( errors[iline], depth, linestyle='-', linewidth=1, color=color, label=label)
                 expt_elementsL.append(ll)
                 expt_elementsd=[]
                 for iplot, maxdepth in enumerate(maxdepths):
-                    axeD = axeA[iline][iplot+1]
-                    figD = figA[iline][iplot+1]
-                    lt, = axeD[iplot].plot( errors[iline], depth, linewidth=lwidth, linestyle=linestyle, color=color, label=label)
+                    lt, = axeD[iplot].plot( errors[iline], depth, linewidth=1, linestyle='-', color=color, label=label)
                     expt_elementsd.append(lt)
                 expt_elementsD.append(expt_elementsd)
             expt_elementsA.append([expt_elementsL]+expt_elementsD)
@@ -968,10 +969,10 @@ def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 20
         expt_elementsL = expt_elementsA[lina][0]
         expt_elementsD = expt_elementsA[lina][1:]
         expt_legendL = axeL.legend(handles=expt_elementsL, loc='upper right')
-        line_legendL = axeL.legend(handles=line_elementsL, loc='lower right')
+        #line_legendL = axeL.legend(handles=line_elementsL, loc='lower right')
         axeL.set_title(title)
         axeL.add_artist(expt_legendL)
-        axeL.add_artist(line_legendL)
+        #axeL.add_artist(line_legendL)
         axeL.invert_yaxis()
         axeL.set_xlabel(flabel)
         axeL.set_ylabel('depth (m)')
@@ -982,7 +983,7 @@ def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 20
         for iplot, maxdepth in enumerate(maxdepths):
             mstr=str(maxdepth)
             expt_elements = [ expt_elementsD[iexpt][iplot] for iexpt in range(nexpts) ]
-            line_elements = [ line_elementsD[iline][iplot] for iline in range(nlines) ]
+            #line_elements = [ line_elementsD[iline][iplot] for iline in range(nlines) ]
             if ( maxdepth > 200 ):
                 locexpt='center right'
                 locline='lower right'
@@ -991,10 +992,10 @@ def plot_profile_norm_multi(df_profile_list, labels, fld='T', maxdepths=[200, 20
                 locline='lower center'
             
             expt_legendD = axeD[iplot].legend(handles=expt_elements, loc=locexpt)
-            line_legendD = axeD[iplot].legend(handles=line_elements, loc=locline)
+            #line_legendD = axeD[iplot].legend(handles=line_elements, loc=locline)
             axeD[iplot].set_title(title)
             axeD[iplot].add_artist(expt_legendD)
-            axeD[iplot].add_artist(line_legendD)
+            #axeD[iplot].add_artist(line_legendD)
             axeD[iplot].set_ylim([0, maxdepth])
             axeD[iplot].invert_yaxis()
             axeD[iplot].set_xlabel(flabel)
@@ -1040,7 +1041,7 @@ def plot_df_field(binF, drop=['ensvvo', 'ensvvf'], outpre='PLOTS/', titpre=''):
            LEVS=np.arange(-0.9,0.9,0.2)
            cmap=cmap_anom
        if ( vari[0:5] == 'count' ):
-            cmap=cmap_pdef
+            cmap=cmap_posd
        if ( ( vari[0:2] == 'vo' ) or ( vari[0:2] == 'vf' ) ):
            varn=vari
            if ( vari[2] == 'T' ):
@@ -1234,15 +1235,20 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
             print("FAILURE of NORM PROFILES")
     print("FINISHED PROFILE PLOTS")
 
-    for ilevel, level in enumerate(Levels):
+    try:
+      for ilevel, level in enumerate(Levels):
         levstr=str(level[0])+'_'+str(level[1])
         for iexpt, expt in enumerate(expts):
             binL = bin_list[iexpt][ilevel]
             outpreoutb=outdirpre+outdir[iexpt]+'/'+'Levels_'+datestrr+'_'+levstr+'_'
             titpre=labels[iexpt]+' '+datestrr+' '+levstr
             #print('TITLE', titpre, len(titpre))
-            plot_df_field(binL, titpre=titpre, outpre=outpreoutb)
-            print("FINISHED FULL FIELD LEVEL : ", levstr, labels[iexpt])
+            try:
+                plot_df_field(binL, titpre=titpre, outpre=outpreoutb)
+                print("FINISHED FULL FIELD LEVEL : ", levstr, labels[iexpt])
+            except:
+                print(traceback.print_exc())
+                print("FAILURE FULL FIELD LEVEL : ", levstr, labels[iexpt])
             if ( iexpt == 0 ): 
                 bin0=binL
             else:
@@ -1250,9 +1256,17 @@ def produce_stats_plot( date_range, expts, enss, labels=None, outdir=None, ddir=
                 titpre=labels[0]+'-'+labels[iexpt]+' '+datestrr+' '+levstr
                 #print('TITLE', titpre, len(titpre))
                 outpreoutb=odir+'/'+'Levels_'+datestrr+'_'+levstr+'_'
-                plot_diff_field(bin0, binL, titpre=titpre, outpre=outpreoutb)
-                print("FINISHED DIFF FIELD LEVEL : ", levstr, labels[iexpt])
+                try:
+                    plot_diff_field(bin0, binL, titpre=titpre, outpre=outpreoutb)
+                    print("FINISHED DIFF FIELD LEVEL : ", levstr, labels[iexpt])
+                except:
+                    print(traceback.print_exc())
+                    print("FAILURE DIFF FIELD LEVEL : ", levstr, labels[iexpt])
         print("FINISHED LEVEL", ilevel)
+    except:
+        print(traceback.print_exc())
+        print("FAILURE LEVEL PLOTS")
+
     print("FINISHED LEVEL PLOTS")
 
     Tvarslist = ['countT', 'misfitT', 'sqrerrT', 'ensvarT', 'crpsT']

@@ -5,12 +5,16 @@ sys.path.insert(0, this_dir)
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tk
+import matplotlib.image as image
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+
 import datetime
 import numpy as np
 import scipy.stats
 import subprocess
 import glob
 import os
+import time
 
 
 import fft_giops
@@ -21,12 +25,35 @@ import read_grid
 import isoheatcontent
 import write_nc_grid
 import ctile
+import find_hall
+import shapiro
 
 hir5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
 hir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_hpcarchives'
 mir5='/fs/site5/eccc/mrd/rpnenv/dpe000/maestro_archives'
 mir6='/fs/site6/eccc/mrd/rpnenv/dpe000/maestro_archives'
 
+#https://en.wikipedia.org/wiki/Unicode_subscripts_and_superscripts#Superscripts_and_subscripts_block
+udeg='\u00b0'
+su2='\u00b2'
+su3='\u00b3'
+su4='\u2074'
+su5='\u2075'
+supminus='\u207B'
+supplus='\u207A'
+udot="\u2022"
+udot="\u22C5"
+hdot2="\u22c5"
+hdot3="\u02D9"
+hdot4="\u2219"
+hdots=[udot, hdot2, hdot3, hdot4]
+#for hdot in hdots:
+#    print("k"+su4+hdot+su5)
+hdot=hdot3    
+
+imgkm3 = image.imread('/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/TexPapers/TexEnGIOPS/GRL/km3.png')
+imgkm4p5 = image.imread('/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/TexPapers/TexEnGIOPS/GRL/km4p5.png')
+    
 def inverse(x):
     """Vectorized 1/x, treating x==0 manually"""
     x = np.array(x, float)
@@ -185,7 +212,7 @@ def create_BOXES(gdx=BOX_DNFO['gdx'], GDX=BOX_DNFO['GDX'], threshold=BOX_DNFO['t
     LATT = LATL * (80+84)
     NBOX =  np.floor(LATT / GDX).astype(int)
     LATS = np.arange(NBOX) * (80.0+84) / NBOX - 80
-    print(LATS)
+    #print(LATS)
     #LATS = LATS[1:-1]
     #print(LATS)
     for LAT in LATS:
@@ -222,6 +249,10 @@ def read_field(expt, date, var, ddir=mir5, file_pre='ORCA025-CMC-ANAL_1d_'):
     date = check_date.check_date(date, outtype=datetime.datetime)
     if ( var == 'D20' ):
         lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_')
+    elif ( ( var == 'R75' ) or  ( var == 'R3C' ) ):
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='SST', file_pre='ORCA025-CMC-ANAL_1d_')
+        nx, ny = np.squeeze(ETFLD[0]).shape
+        ETFLD = [ np.random.randn(nx,ny) for eTFLD in ETFLD ]
     else:
         lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_')
     ESST = [ np.squeeze(eTFLD/1) for eTFLD in ETFLD]
@@ -246,9 +277,23 @@ def read_field(expt, date, var, ddir=mir5, file_pre='ORCA025-CMC-ANAL_1d_'):
            D_msk = np.ma.array(D_iso, mask=(1-tmask[0,:,:]).astype(bool))
            NSST.append(D_msk)
         ESST=NSST
+    if ( var == 'R75' ):
+        time0=time.time()
+        ESST = [ call_shapiro(eSST, 75) for eSST in ESST ]
+        time_elapsed = time.time() - time0
+        print('Finished SHAPIRO after ', time_elapsed)
+    if ( var == 'R3C' ):
+        time0=time.time()
+        ESST = [ call_shapiro(eSST, 300) for eSST in ESST ]
+        time_elapsed = time.time() - time0
+        print('Finished SHAPIRO after ', time_elapsed)
     MSST = sum(ESST)/ne
     return MSST, ESST, (lone, late)
-    
+
+def call_shapiro(fld, npass):
+    Ffld, __ = shapiro.shapiro2D(fld, npass=npass)
+    return Ffld    
+
 def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST', gdx=25.0, GDX=2500, LL_SW=(-172, 0) ):
     oar=var
     if ( var == 'T' ): oar='T100'
@@ -752,12 +797,41 @@ def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
    
     return kwave, PSA_fulllist, PSB_fulllist
 
-def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outdir='BOX/'):  
+def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outdir='BOX/'):
+    host=find_hall.get_host()
+    usetex = False
+    if ( host[0:4] == 'hpcr' ):
+        usetex=False
+    plt.rc('text', usetex=usetex)
+    field_id = ''
+    units=''
+    if ( var == 'K15' or var == 'U15' or var == 'V15' ):  
+        field_id = ' velocity '
+        units="( (m/s)"+su2+" m )"
+        if usetex:  units="( (m/s)$^2 \cdot$ m )"
+    if ( var == 'KE0' or var == 'SSU' or var == 'SSV' ):  
+        field_id = ' velocity '
+        units="( (m/s)"+su2+udot+"m )"
+        units="( (m/s)$^2 \cdot$m )"
+    if ( var == 'TAUK' ): 
+        field_id = ' wind stress '
+        units="( (N/m^2)"+su2+udot+"m )"
+        if usetex: units="( (N/m$^2$)$^2 \cdot$m )"
+    if ( var == 'SST' or var == 'T100' or var == 'T'): 
+        field_id = ' temperature '
+        units="( (K)"+su2+udot+"m )"
+        if usetex: units="( (K)$^2 \cdot$m )"
+    if ( var == 'MLD' ): 
+        field_id = ' Mixed Layer Depth '
+        units="( (m)"+su2+udot+"m )"
+        if usetex: units="( (m)$^2 \dot$m )"
+            
     if ( isinstance(date_list, type(None)) ):
         invar=var
         if ( var == 'K15' ): invar='U15'
         if ( var == 'KE0' ): invar='SSU'
         if ( var == 'TAUK' ): invar='TAUX'
+            
         files=glob.glob(indir+invar+'_psd_'+'????????'+'.nc')
         date_list=[]
         startx=5+len(invar)
@@ -950,7 +1024,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     br.legend()
     br = special_xaxis(br)
     br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio")
+    br.set_ylabel("Ratio PSD(Ensemble Mean)/ PSD(Ensemble Members)")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.lat'+".png"
@@ -975,7 +1049,24 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         #    label = 'lat > '+str(minLat)
         #else:
         #    label = str(minLat)+' < lat < '+str(maxLat)
-        label = str(minLat)+' < lat < '+str(maxLat)
+        if ( minLat < 0 ):
+            sminLat = str(np.abs(minLat))+udeg+'S'
+        elif ( minLat > 0):
+            sminLat = str(minLat)+udeg+'N'
+        elif ( minLat == 0 ):
+            sminLat = str(minLat)+udeg
+        else:
+            sminLat = str(minLat)+udeg
+        if ( maxLat < 0 ):
+            smaxLat = str(np.abs(maxLat))+udeg+'S'
+        elif ( maxLat > 0):
+            smaxLat = str(maxLat)+udeg+'N'
+        elif ( maxLat == 0 ):
+            smaxLat = str(maxLat)+udeg
+        else:
+            smaxLat = str(maxLat)+udeg
+        label = sminLat+' < lat < '+smaxLat
+        
         print('jlat ratio', jlat, label, jPSM[jlat][1:]/jPSE[jlat][1:], 'mean', jPSM[jlat], 'member', jPSE[jlat])
         br.semilogx(kwave[1:], jPSM[jlat][1:]/jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
         be.loglog(kwave[1:], jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
@@ -983,7 +1074,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     br.legend()
     br = special_xaxis(br)
     br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio")
+    br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.Lat'+".png"
@@ -992,7 +1083,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     be.legend()
     be = special_xaxis(be)
     be.set_xlabel("wavelength (km)")
-    be.set_ylabel("Power")
+    be.set_ylabel("PSD "+field_id+units)
     be.grid(linestyle=':', color='gray', which='both')
     gie.tight_layout()
     ofile=outdir+"PSW_loglogE."+oar+'.Lat'+".png"
@@ -1001,22 +1092,45 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     bm.legend()
     bm = special_xaxis(bm)
     bm.set_xlabel("wavelength (km)")
-    bm.set_ylabel("Ratio")
+    bm.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
     bm.grid(linestyle=':', color='gray', which='both')
     gim.tight_layout()
     ofile=outdir+"PSW_loglogM."+oar+'.Lat'+".png"
     gim.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gim)
 
+    km3 = np.where( ( (1.0/kwave) > 195 ) & ( (1.0/kwave) < 205 ) )[0][0]
+    km4 = np.where( ( (1.0/kwave) > 95 ) & ( (1.0/kwave) < 105 ) )[0][0]
+    km3range = range(max([0,km3-2]),min([km3+5, len(kwave)-1]))
+    km4range = range(max([0,km4-2]),min([km4+5, len(kwave)-1]))
+    Km3 = PSE[km3]*(kwave/kwave[km3])**(-3)
+    Km4p5 = PSE[km4]*(kwave/kwave[km4])**(-4.5)
+    labkm3='k^(-3)'
+    labkm3="k"+supminus+su3
+    if usetex: labkm3='$k^{-3}$'
+    labkm4p5='k^(-4.5)'
+    labkm4p5="k"+supminus+su4+hdot+su5
+    if usetex: labkm4p5='$k^{-4.5}$'
+    
     gig, bx = plt.subplots()
     gir, br = plt.subplots()
-    bx.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean')
-    bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member')
+    bx.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean', linewidth=2.0)
+    bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member', linewidth=2.0)
+    bx.loglog(kwave[km3range], Km3[km3range], linestyle=':', color='r', linewidth=2.0)#, label=labkm3)
+    bx.loglog(kwave[km4range], Km4p5[km4range], linestyle=':', color='b', linewidth=2.0)#, label=labkm4p5)
     br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
     bx.legend()
+    # label k-3 and k-4.5 lines in place.  May need to offset image from coordinates given.
+    km3box = OffsetImage(imgkm3, zoom=0.50)
+    km4box = OffsetImage(imgkm4p5, zoom=0.50)
+    km3art = AnnotationBbox(km3box, (kwave[km3], PSE[km3]), frameon=False, box_alignment=(0,0))
+    km4art = AnnotationBbox(km4box, (kwave[km4], PSE[km4]), frameon=False, box_alignment=(0,0))
+    bx.add_artist(km3art)
+    bx.add_artist(km4art)
+    
     bx = special_xaxis(bx)
     bx.set_xlabel("wavelength (km)")
-    bx.set_ylabel("PSD(k)")
+    bx.set_ylabel("PSD"+field_id+units)
     bx.grid(linestyle=':', color='gray', which='both')
     gig.tight_layout()
     print(outdir, oar)
@@ -1026,7 +1140,7 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     br.legend()
     br = special_xaxis(br)
     br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio")
+    br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.glb'+".png"
@@ -1056,7 +1170,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
     print('Max/mean length 05', np.max(LENGTH), np.mean(LENGTH))
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.4*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png', alpha=1.0)
+    latloc=[-75, -45, -15, 15, 45, 75]
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.4*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc, lonloc=None)
 
     izero = np.where(KMN == 0 )
     KFN = KMN[:]
@@ -1065,12 +1180,12 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
     print('Max/mean length MN', np.max(LENGTH), np.mean(LENGTH))
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0)
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc)
 
     #KFN = BRT[:]
     #LENGTH = KFN
     print('Min/Max/mean ratio', np.min(BRT), np.max(BRT), np.mean(BRT))
-    ctile.cplot_tiles(BOXES, BRT, SCALE=[0, 0.4], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXRT_'+oar+'.png', alpha=1.0)
+    ctile.cplot_tiles(BOXES, BRT, SCALE=[0, 0.4], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXRT_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc)
 
     print('COMPLETED PLOTING')
     return kwave, psd_mean, psd_memb, K05

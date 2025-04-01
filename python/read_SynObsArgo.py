@@ -36,8 +36,10 @@ def read_argo_data(file, obs=False):
     if ( obs ):
         TEMP_obs=ARGO['T_argo'].values
         SALW_obs=ARGO['S_argo'].values
+        ARGO.close()
         return (lon, lat, time, dept), (TEMP, SALW), (TEMP_obs, SALW_obs)
         
     else:
+        ARGO.close()
         return (lon, lat, time, dept), (TEMP, SALW)
         

@@ -589,6 +589,7 @@ def cycle_thru_dates(dates, expt, ens=list(range(21)), deterministic=False, ddir
         ADD_RESULTS = RTN_LIST.get()
     else:     
        for idate,date in enumerate(dates):
+           print('DATE', date)
            ADD_RESULTS.append(calc_errors_date(date, expt, ens=ens, deterministic=deterministic, ddir=ddir, mp_read=mp_read, subset=subset))
     for idate, date in enumerate(dates):
        add_gl_series, add_rgs_series, add_bin_series = ADD_RESULTS[idate]
@@ -657,7 +658,16 @@ def put_bin_onlevels(bin_series, depth_range, llvars=['lon_bin', 'lat_bin'], dva
         abovemaxS = df_binS[dSvar] <= depthmax
 
     df_levelT = df_binT[belowminT & abovemaxT]
-    df_levelS = df_binS[belowminS * abovemaxS]
+    df_levelS = df_binS[belowminS & abovemaxS]
+    print('DID THIS WORK?')
+    print(depth_range)
+    ## Hey STUPID:  ( BOOL_A * BOOL_B ) == ( BOOL_A & BOOL_B ) == ( BOOL_A and BOOL_B ) AND   ( BOOL_A + BOOL_B ) == ( BOOL_A | BOOL_B ) == ( BOOL_A or BOOL_B )
+    print('T levels mean', df_levelT[dTvar].mean(), df_binT[belowminT & abovemaxT][dTvar].mean(), df_binT[belowminT * abovemaxT][dTvar].mean())
+    print('T levels max', df_levelT[dTvar].max(), df_binT[belowminT & abovemaxT][dTvar].max(), df_binT[belowminT * abovemaxT][dTvar].max())
+    print('T levels min', df_levelT[dTvar].min(), df_binT[belowminT & abovemaxT][dTvar].min(), df_binT[belowminT * abovemaxT][dTvar].min())
+    print('S levels mean', df_levelS[dSvar].mean(), df_binS[belowminS & abovemaxS][dSvar].mean(), df_binS[belowminS * abovemaxS][dSvar].mean())
+    print('S levels max', df_levelS[dSvar].max(), df_binS[belowminS & abovemaxS][dSvar].max(), df_binS[belowminS * abovemaxS][dSvar].max())
+    print('S levels min', df_levelS[dSvar].min(), df_binS[belowminS & abovemaxS][dSvar].min(), df_binS[belowminS * abovemaxS][dSvar].min())
     return df_levelT, df_levelS
 
 Levels = [  [0, 200.0], [0, 500.0], [200.0, 500.0], [500.0, 2000.0], [0, 50.0], [0, 10.0], [0, 5.0]]
@@ -679,8 +689,11 @@ def apply_depth_averaging(bin_Levels, llvars=['lon_bin', 'lat_bin']):
         binS=bin_Levels[1]
         newbinT = binT.copy()
         newbinS = binS.copy()
-        newbinT['depth_T'] = binT['depth_T'].values * binT['countT'].values
-        newbinS['depth_S'] = binS['depth_S'].values * binS['countS'].values
+        # WHY AM I MULTIPYING BY count WHEN THE BIN values ARE ALREADY A SUM??
+        #newbinT['depth_T'] = binT['depth_T'].values * binT['countT'].values
+        #newbinS['depth_S'] = binS['depth_S'].values * binS['countS'].values
+        newbinT['depth_T'] = binT['depth_T'].values
+        newbinS['depth_S'] = binS['depth_S'].values
         dfT = newbinT.groupby(llvars).sum().reset_index()
         dfS = newbinS.groupby(llvars).sum().reset_index()
         dfT = final_mean(dfT, 'countT', llvars )
@@ -1152,6 +1165,7 @@ def cycle_thru_expts(dates, expts, enss, ddir=get_mdir(5), mp_expt=False, mp_rea
 
     if ( not mp_expt ):
         for iexpt, expt in enumerate(expts):
+            print('EXPT', expt)
             ens_passed = enss[iexpt]
             dir_passed = ddirs[iexpt]
             expt_rtn, gl_series, rgs_series, bin_series, grgs_varray = process_expt(dates, expt, ens_passed, dir_passed, mp_read=mp_read, mp_date=mp_date, subset=subset)

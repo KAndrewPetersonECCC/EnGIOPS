@@ -21,24 +21,21 @@ import datetime
 import read_DF_VP
 import rank_histogram
 
-do3=True
-do4=False
-doa=False
-dates = rank_histogram.create_dates(20200101, 20230104, 7)
+#dates = rank_histogram.create_dates(20200101, 20230104, 7)
+dates = rank_histogram.create_dates(20200101, 20200129, 7)
 
-if do3:
-    expts=('CNTL', 'NoAlt', 'NoArgo')
-if do4:
-    expts=('CNTL', 'NoAlt', 'NoArgo', 'Free')
-if doa:
-    expts=('CNTL', 'NoArgo', 'NoAlt', 'HalfArgo', 'NoSST', 'NoInsitu', 'SSTonly', 'NoMoor', 'Free', 'Oper')
+expts=('CNTLV2', 'NoArgoV2')
+
 nexpt=len(expts)
 labels=expts
 outdir=[str(nexpt)+'_'+expt for expt in expts]
 enss=tuple([0]*nexpt)
-ddir=[read_DF_VP.get_mdir(5,user='saqu500', grp='cmd', rpn='e')+'/SynObs']*nexpt
+#ddir=[read_DF_VP.get_mdir(5,user='saqu500', grp='cmd', rpn='e')+'/SynObs']*nexpt
+datadir='/fs/site5/eccc/cmd/e/saqu500/maestro_archives/SynObs'
+ddir=[datadir]*nexpt
 # default mp_read=True only makes sense for ensemble experiments.
 # mp_date option might be good.
-read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir,ddir=ddir, mp_date=True)
-
+#read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir,ddir=ddir, mp_date=True)
+#read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre='vFTT_', noensstat=True, nostdstat=True, subset=0)
+read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=False, outdirpre='vFST_', noensstat=True, nostdstat=True, subset=0)
 EOD

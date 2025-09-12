@@ -11,8 +11,8 @@ file='/home/dpe000/data/ppp6/SynObs2/5/OP-AN/GIOPS/CNTL/OPA-PL/ArRef/OPA-PL_ArRe
 filf='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/data/synobs_frontiers/OP-AN/FOAM/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_FOAM_CNTL.nc'
 filg='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/data/synobs_frontiers/OP-AN/FOAM/NoArgo/OPA-PL/ArRef/OPA-PL_ArRef_202001_FOAM_NoArgo.nc'
 odird='/home/dpe000/data/ppp6/SynObs2/5/'
-ddirS='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/data/synobs_frontiers/'
-
+ddirS1='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp_A/jcope/data/synobs_frontiers/'
+ddirS='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/distributions/SynObsDB/'
 #(lon, lat, time, depth), (TEMP, SALW), (TEMP_obs, SALW_obs) = read_SynObsArgo.read_argo_data(file, obs=True)
 #(lon, lat, time, depth), (TEMP, SALW) = read_SynObsArgo.read_argo_data(filf, obs=False)
 #(lon, lat, time, depth), (TEMP_a, SALW_a) = read_SynObsArgo.read_argo_data(filg, obs=False)
@@ -39,6 +39,7 @@ def do_cspeed_expt(inst, expt, start, final, ref="Ref", ddir=ddirS, odir=odird):
     
     instt=inst
     if ( inst == 'MOVE-G3' ): instt=inst+'F'
+    if ( inst == 'ORAS6FP' ): instt='ORAS6'
     
     TIMA=None
     oiles=[]
@@ -100,16 +101,16 @@ def do_cspeed_expt(inst, expt, start, final, ref="Ref", ddir=ddirS, odir=odird):
     ALARM=nalarm/nobs
     FCST=nfcst/nobs
     NULL=nnull/nobs
-    print(BRSC, nobs )
-    print(FCST, nfcst, ntrue)
-    print(MISS, nmiss, ntrue)
-    print(NULL, nnull, nfalse)
-    print(ALARM, nalarm, nfalse)
+    print('BRSC', BRSC, nobs )
+    print('FCST', FCST, nfcst, ntrue)
+    print('MISS', MISS, nmiss, ntrue)
+    print('NULL', NULL, nnull, nfalse)
+    print('ALARM', ALARM, nalarm, nfalse)
     trange=f"{start[0]}/{start[1]:02} -- {final[0]}/{final[1]:02}"
     orange=f"{start[0]}{start[1]:02}-{final[0]}{final[1]:02}"
     make_scatter([is_fcst, is_miss, is_alarm, is_null], (LONA, LATA), expt=expt, inst=inst, ref=ref, trange=trange, orange=orange)
     
-    return BRSC, MISS, ALARM
+    return BRSC, MISS, ALARM, (TorF_OBS, TorF_EXP), (LONA, LATA)
 
 def make_scatter(IS_RESULT, LONLAT, expt='EXPT', inst='INST', ref='Ref', trange='', orange=''):
     [is_fcst, is_miss, is_alarm, is_null] = IS_RESULT

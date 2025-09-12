@@ -17,6 +17,7 @@ REFERENCE_DATE = datetime.datetime(1950,1,1,0,0,0,0, pytz.UTC)
 
 file='/home/dpe000/data/ppp6/SynObs2/5/OP-AN/GIOPS/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_GIOPS_CNTL.nc'
 filf='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/data/synobs_frontiers/OP-AN/FOAM/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_FOAM_CNTL.nc'
+filg='/home/dpe000/data/ppp6/JAMSTEC_MIRROR/www.jamstec.go.jp/jcope/distributions/SynObsDB/OP-AN/FOAM/CNTL/OPA-PL/ArRef/OPA-PL_ArRef_202001_FOAM_CNTL.nc'
 
 def read_argo(file):
     ARGO=xr.open_dataset(file)

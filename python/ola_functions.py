@@ -196,6 +196,10 @@ def subset_SSH_dataframe(df_IS, SAT='ALL'):
         df_subset = df_IS[df_IS['setID'] == 14]
     elif ( ( SAT == 'SENTINEL3A' ) or ( SAT == 'SENTINEL') or ( SAT == 'S3A' ) or ( SAT == '17' ) ):
         df_subset = df_IS[df_IS['setID'] == 17]
+    elif ( ( SAT == 'SENTINEL3B' ) or ( SAT == 'S3B' ) or ( SAT == '18' ) ):
+        df_subset = df_IS[df_IS['setID'] == 18]
+    elif ( isinstance(SAT, int) ):
+        df_subset = df_IS[df_IS['setID'] == SAT]
     else:
         df_subset = df_IS
     return df_subset

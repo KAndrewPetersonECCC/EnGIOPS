@@ -1114,96 +1114,55 @@ def calc_class4_duct_stats_key(dates, reference='CNTL', keylist=['CNTL', 'Free',
     print('BRIER SKILL Score wrt '+reference, south_brier_skill_ref)
     print('obs clim ', south_probl_OBS, ' Frequency ', SOUTH_PROBL_LIST)
     print('obs clim ', south_brier_OBS, ' Brier Score ', [south_brier_OBS - south_brier_skill for south_brier_skill in south_brier_skill_obs])
-    ## GLOBAL
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_bs_" + filesuf + ".png" for filepre in ofiles] 
-    plot_all(BRIER_LIST, GLOBAL_BRIER_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0, 0.30, 0.02), ticks=np.arange(0,0.3,0.1), title = 'Brier Score', cmap=cmap_full)
 
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsr_" + filesuf + ".png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_REF, global_brier_skill_ref, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over '+reference, cmap=cmap_anom)
 
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsc_" + filesuf + ".png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_CLM, global_brier_skill_obs, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over obs clim', cmap=cmap_anom)
+    for pproj in ['G', 'N', 'S']:
+        if ( pproj == 'G' ):
+            project='PlateCarree'
+            box=[-180, 180, -90, 90]
+            filesuff='.png'
+        if ( pproj == 'N' ):
+            project='NorthPolarStereo'
+            box=[-180, 180, 30, 90]
+            filesuff='.np.png'
+        if ( pproj == 'S' ):
+            project='SouthPolarStereo'
+            box=[-180, 180, -90, -30]
+            filesuff='.sp.png'
+            
+        ## LOOP
+        # positive definite
+        outfiles = [add_slash(pdir) + filepre + "_bs_" + filesuf + filesuff for filepre in ofiles] 
+        plot_all(BRIER_LIST, GLOBAL_BRIER_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0, 0.30, 0.02), ticks=np.arange(0,0.3,0.1), title = 'Brier Score', cmap=cmap_full)
 
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_prd_" + filesuf + ".png" for filepre in ofiles] 
-    plot_all(PROBL_DIFF, GLOBAL_PROBL_DIFF, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Probabality (Frequency) Bias', cmap=cmap_anom)
+        # 0 centered
+        outfiles = [add_slash(pdir) + filepre + "_bsr_" + filesuf + filesuff for filepre in ofiles] 
+        plot_all(BRIER_LIST_REF, global_brier_skill_ref, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over '+reference, cmap=cmap_anom)
 
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_prb_" + filesuf + ".png" for filepre in ofiles] 
-    plot_all(PROBL_LIST, GLOBAL_PROBL_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), title = 'Average Probability in Bin', cmap=cmap_full)
+        # 0 centered
+        outfiles = [add_slash(pdir) + filepre + "_bsc_" + filesuf + filesuff for filepre in ofiles] 
+        plot_all(BRIER_LIST_CLM, global_brier_skill_obs, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over obs clim', cmap=cmap_anom)
+
+        # 0 centered
+        outfiles = [add_slash(pdir) + filepre + "_prd_" + filesuf + filesuff for filepre in ofiles] 
+        plot_all(PROBL_DIFF, GLOBAL_PROBL_DIFF, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Probabality (Frequency) Bias', cmap=cmap_anom)
+
+        # positive definite
+        outfiles = [add_slash(pdir) + filepre + "_prb_" + filesuf + filesuff for filepre in ofiles] 
+        plot_all(PROBL_LIST, GLOBAL_PROBL_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), title = 'Average Probability in Bin', cmap=cmap_full)
     
-    # positive definite
-    outfile=add_slash(pdir) + 'OBS'+ "_" + filesuf + ".png"
-    plot_all([binned_probl_OBS], [global_probl_OBS], grd_lon, grd_lat, ['Climatological Probability'], [outfile], title = 'Probable Occurence in Bin', levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), cmap=cmap_full)
+        # positive definite
+        outfile=add_slash(pdir) + 'OBS'+ "_" + filesuf + filesuff
+        plot_all([binned_probl_OBS], [global_probl_OBS], grd_lon, grd_lat, ['Climatological Probability'], [outfile], title = 'Probable Occurence in Bin', levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), cmap=cmap_full)
 
-    # positive definite and LARGE
-    outfile=add_slash(pdir) + 'SUM'+ "_" + filesuf + ".png"
-    plot_all([summed_count_OBS], [global_count_OBS], grd_lon, grd_lat, ['Total Observations'], [outfile], title = 'Total Observations in Bin', levels=np.arange(0, 1001, 50), ticks=None, cmap=cmap_full)
+        # positive definite 0 to 1
+        outfile=add_slash(pdir) + 'OBS_bs'+ "_" + filesuf + filesuff
+        plot_all([binned_brier_OBS], [global_brier_OBS], grd_lon, grd_lat, ['Climatological Brier Score'], [outfile], title = 'Brier Score', levels=np.arange(0, 0.30, 0.02), ticks=np.arange(0,0.3,0.1), cmap=cmap_full)
 
-    ## NORTH
-    project='NorthPolarStereo'
-    box=[-180, 180, 30, 90]
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_bs_" + filesuf + ".np.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST, NORTH_BRIER_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0, 0.30, 0.02), ticks=np.arange(0,0.3,0.1), title = 'Brier Score', cmap=cmap_full, project=project, box=box)
+       # positive definite and LARGE
+        outfile=add_slash(pdir) + 'SUM'+ "_" + filesuf + filesuff
+        plot_all([summed_count_OBS], [global_count_OBS], grd_lon, grd_lat, ['Total Observations'], [outfile], title = 'Total Observations in Bin', levels=np.arange(0, 1001, 50), ticks=None, cmap=cmap_full)
 
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsr_" + filesuf + ".np.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_REF, north_brier_skill_ref, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over '+reference, cmap=cmap_anom, project=project, box=box)
-
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsc_" + filesuf + ".np.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_CLM, north_brier_skill_obs, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over obs clim', cmap=cmap_anom, project=project, box=box)
-
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_prd_" + filesuf + ".np.png" for filepre in ofiles] 
-    plot_all(PROBL_DIFF, NORTH_PROBL_DIFF, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Probabality (Frequency) Bias', cmap=cmap_anom, project=project, box=box)
-
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_prb_" + filesuf + ".np.png" for filepre in ofiles] 
-    plot_all(PROBL_LIST, NORTH_PROBL_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), title = 'Average Probability in Bin', cmap=cmap_full, project=project, box=box)
-    
-    # positive definite
-    outfile=add_slash(pdir) + 'OBS'+ "_" + filesuf + ".np.png"
-    plot_all([binned_probl_OBS], [north_probl_OBS], grd_lon, grd_lat, ['Climatological Probability'], [outfile], title = 'Probable Occurence in Bin', levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), cmap=cmap_full, project=project, box=box)
-
-    # positive definite and LARGE
-    outfile=add_slash(pdir) + 'SUM'+ "_" + filesuf + ".np.png"
-    plot_all([summed_count_OBS], [north_count_OBS], grd_lon, grd_lat, ['Total Observations'], [outfile], title = 'Total Observations in Bin', levels=np.arange(0, 1001, 50), ticks=None, cmap=cmap_full, project=project, box=box)
-
-    ## SOUTH
-    project='SouthPolarStereo'
-    box=[-180, 180, -90, -30]
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_bs_" + filesuf + ".sp.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST, SOUTH_BRIER_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0, 0.30, 0.02), ticks=np.arange(0,0.3,0.1), title = 'Brier Score', cmap=cmap_full, project=project, box=box)
-
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsr_" + filesuf + ".sp.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_REF, south_brier_skill_ref, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over '+reference, cmap=cmap_anom, project=project, box=box)
-
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_bsc_" + filesuf + ".sp.png" for filepre in ofiles] 
-    plot_all(BRIER_LIST_CLM, south_brier_skill_obs, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Brier Score improvement over obs clim', cmap=cmap_anom, project=project, box=box)
-
-    # 0 centered
-    outfiles = [add_slash(pdir) + filepre + "_prd_" + filesuf + ".sp.png" for filepre in ofiles] 
-    plot_all(PROBL_DIFF, SOUTH_PROBL_DIFF, grd_lon, grd_lat, labels, outfiles, levels=levels, ticks=ticks, title = 'Probabality (Frequency) Bias', cmap=cmap_anom, project=project, box=box)
-
-    # positive definite
-    outfiles = [add_slash(pdir) + filepre + "_prb_" + filesuf + ".sp.png" for filepre in ofiles] 
-    plot_all(PROBL_LIST, SOUTH_PROBL_LIST, grd_lon, grd_lat, labels, outfiles, levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), title = 'Average Probability in Bin', cmap=cmap_full, project=project, box=box)
-    
-    # positive definite
-    outfile=add_slash(pdir) + 'OBS'+ "_" + filesuf + ".sp.png"
-    plot_all([binned_probl_OBS], [south_probl_OBS], grd_lon, grd_lat, ['Climatological Probability'], [outfile], title = 'Probable Occurence in Bin', levels=np.arange(0,1.01,0.05), ticks=np.arange(0,1.1,0.1), cmap=cmap_full, project=project, box=box)
-
-    # positive definite and LARGE
-    outfile=add_slash(pdir) + 'SUM'+ "_" + filesuf + ".sp.png"
-    plot_all([summed_count_OBS], [south_count_OBS], grd_lon, grd_lat, ['Total Observations'], [outfile], title = 'Total Observations in Bin', levels=np.arange(0, 1001, 50), ticks=None, cmap=cmap_full, project=project, box=box)
 
     return 
 
@@ -1261,7 +1220,7 @@ def plot_all(fields, glvals, lon, lat, labels, ofiles,
             xitle=title+' ('+bratext+'avg. = '+str(globv)+')'
         else:
             xitle=title+' ('+bratext+'sum. = '+str(globv)+')'
-        cplot.pcolormesh( lon, lat, field, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=ofile, make_global=make_global, title=xitle, suptitle=label,  obar=obar, box=box)
+        cplot.pcolormesh( lon, lat, field, levels=levels, ticks=ticks, cmap=cmap, project=project, outfile=ofile, make_global=make_global, title=xitle, suptitle=label,  obar=obar, box=box, add_gridlines=True)
     return
 
 def bin_all(lon, lat, input_list, ddeg=2.0):

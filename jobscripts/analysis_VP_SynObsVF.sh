@@ -1,5 +1,5 @@
 #!/bin/bash -x
-#ord_soumet /home/dpe000/EnGIOPS/jobscripts/analysis_VP_SynObsVF.sh -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash
+#ord_soumet /home/dpe000/EnGIOPS/jobscripts/analysis_VP_SynObsVF.sh -cpus 40 -cm 180000M -t 21600 -shell=/bin/bash
 
 WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
@@ -38,7 +38,8 @@ orif = ['CNTLV2', 'HalfArgoV2', 'NoArgoV2', 'NoInsituV3', 'NoAltV2',        'Fre
 labf = ['CONTROL','Half Argo',  'No Argo',  'No InSitu',  'No Altimeter', 'Free']
 exptss=[oria, orib, oric, orid, orie, orif]
 labess=[laba, labb, labc, labd, labe, labf]
-dirlabel=['vFA_', 'vFB_', 'vFC_', 'vFD_', 'vFE_', 'vFF_']
+# CHANGED LABEL TO DIAGNOSE POSSIBLE BUG IN BIN LEVELS
+dirlabel=['vFAA_', 'vFBB_', 'vFCC_', 'vFDD_', 'vFEE_', 'vFFF_']
 datess=[datet, datet, datet, datet, datet, datew]
 
 sub_exptss = exptss.copy()
@@ -61,11 +62,12 @@ for iexpts, expts  in enumerate(sub_exptss):
     if ( 'NoBias' in labels ): ddir[labels.index('NoBias')]='/home/kch001/data/ppp5/maestro_archives/SynObs'
     # default mp_read=True only makes sense for ensemble experiments.
     #mp_date option might be good.
+    read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre, noensstat=True, nostdstat=True, subset=subset)
     try:
          read_DF_VP.produce_stats_plot( dates, expts, enss, labels, outdir=outdir, ddir=ddir, mp_date=True, outdirpre=outdirpre, noensstat=True, nostdstat=True, subset=subset)
-         print("SUCCESS PRODUCE STATS")
+         print("SUCCESS PRODUCE STATS", iexpts)
     except:
          print(traceback.print_exc())
-         print("FAILURE PRODUCE STATS")
+         print("FAILURE PRODUCE STATS", iexpts)
 
 EOD

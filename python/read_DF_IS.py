@@ -21,6 +21,7 @@ import traceback
 
 import ola_functions
 import read_DF_VP
+import read_DF_IS
 from read_DF_VP import get_mdir
 import check_date
 import inside_polygon
@@ -989,7 +990,12 @@ def plot_time_vars(dates, t_lists, labels, outdir, areanam):
      
     return
     
-    
+def find_IS_isets(df_IS):
+    isets = []
+    for iset in range(1,20):
+        if ( len( df_IS[ df_IS['setID'] == iset ]) > 0 ): isets.append(iset)
+    return isets
+       
 #DONT DO HERE   
 #print("READ in ENSEMBLE")
 #df_EnSSH = read_ensemble_SSH('GIOPS_T', 20220601, mp_read=False)

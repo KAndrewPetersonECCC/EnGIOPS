@@ -18,6 +18,8 @@ import itertools
 import cplot
 import check_date
 import read_DF_VP
+import read_DF_IS
+import ola_functions
 
 num_cpus = len(os.sched_getaffinity(0))
 ola_file='/home/saqu500/data/ppp5/maestro_archives/SynObs/CNTLV2/SAM2/20200101/DIA/2020010100_SAM.ola'
@@ -58,9 +60,9 @@ def ini_scatter(project='PlateCarree'):
     return fig, axe
 
     
-def add_scatter(fig, axe, df, color='k', label='ALL', s=5):  
-    lon = df.lon.values  
-    lat = df.lat.values
+def add_scatter(fig, axe, df, color='k', label='ALL', s=4, lonname='lon', latname='lat'):  
+    lon = df[lonname].values  
+    lat = df[latname].values
     scat = axe.scatter(x=lon.flatten(), y=lat.flatten(), c=color, s=s, alpha=0.5, transform=ccrs.PlateCarree(), marker='s',label=label)
     return scat
 
@@ -88,9 +90,15 @@ def subset_df_by_date(df, date=datetime.date(2019, 12, 31)):
             new_df[i_df] = subset_df_by_date(df[i_df], date=date) 
         return new_df
     if ( df.empty ): return df
-    ddate = [ date_ref + datetime.timedelta(days=days) for days in df['date']]
+    ddate = [ date_ref + datetime.timedelta(days=days) for days in df["date"]]
     idate = [ ( adate.date() == date ) for adate in ddate]
     new_df = df[idate]
+    return new_df
+
+def subset_is_by_date(df_IS, date=datetime.date(2019, 12, 31)):    
+    ddate = [pd.to_datetime(df_IS['obsdate'][ii].isoformat()) for ii in df_IS.index]
+    idate = [ ( adate.date() == date ) for adate in ddate]
+    new_df = df_IS[idate]
     return new_df
 
 def subset_df_by_exist(df, var='voT'):
@@ -145,6 +153,32 @@ def scatter_obs_for_day(date, pdir='OBSS/'):
             outfile=pdir+'/'+V+'observations500m_'+date_dstr+'.png'
             title=V+' Observations for '+date_dstr+' > 500m'
         fin_scatter(fig, axe, title=title, output=outfile)
+    return
+
+def scatter_SLA_for_day(date, pdir='OBSS/'):
+    date=check_date.check_date(date, outtype=datetime.date)
+    days_anal = 7 - ((date.weekday() - 2)%7)
+    date_anal = date + datetime.timedelta(days=days_anal)
+    date_astr = date_anal.strftime("%Y%m%d")
+    date_dstr = date.strftime("%Y%m%d")
+
+    DDIR='/home/saqu500/data/ppp5/maestro_archives/SynObs/'
+    EXPT='CNTLV2'
+    ola_file=DDIR+EXPT+'/SAM2/'+date_astr+'/DIA/'+date_astr+'00_SAM.ola'
+    print(ola_file)
+
+    IS_DAT = read_DF_IS.SSH_dataframe(ola_file)
+    IS_DAY = subset_is_by_date(IS_DAT, date=date )
+    isets = read_DF_IS.find_IS_isets(IS_DAY)
+    print('isets', isets)
+
+    colors=['b','r', 'g', 'orange', 'cyan', 'magenta']
+    fig, axe = ini_scatter()
+    for iis, iset in enumerate(isets):
+        scat=add_scatter(fig, axe, ola_functions.subset_SSH_dataframe(IS_DAY, iset), color=colors[iis%4], label=str(iset), lonname='Lon', latname='Lat', s=1)
+    outfile=pdir+'/'+'SLA'+'observations_'+date_dstr+'.png'
+    title='SLA'+' Observations for '+date_dstr
+    fin_scatter(fig, axe, title=title, output=outfile)
     return
 
 def scatter_obs_for_year(year, pdir='OBSS/'):

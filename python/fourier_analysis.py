@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as tk
 import matplotlib.image as image
 from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+from matplotlib.font_manager import FontProperties
 
 import datetime
 import numpy as np
@@ -41,15 +42,16 @@ su4='\u2074'
 su5='\u2075'
 supminus='\u207B'
 supplus='\u207A'
-udot="\u2022"
-udot="\u22C5"
+udot1="\u2022"
+udot2="\u22C5"
 hdot2="\u22c5"
 hdot3="\u02D9"
 hdot4="\u2219"
-hdots=[udot, hdot2, hdot3, hdot4]
+hdots=[udot1, udot2, hdot2, hdot3, hdot4]
 #for hdot in hdots:
 #    print("k"+su4+hdot+su5)
 hdot=hdot3    
+udot=udot2
 
 imgkm3 = image.imread('/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/TexPapers/TexEnGIOPS/GRL/km3.png')
 imgkm4p5 = image.imread('/fs/homeu2/eccc/mrd/ords/rpnenv/dpe000/TexPapers/TexEnGIOPS/GRL/km4p5.png')
@@ -104,8 +106,8 @@ def adjust_xaxis(taxe, logrange=np.array([1,3])):
 
 def special_xaxis(taxe):
     lrange = [40, 1000]
-    lmajor=[50, 100, 150, 200, 300, 400, 500, 1000]
-    lminor=[40, 60, 70, 80, 90]+list(np.arange(110, 150, 10))+list(np.arange(160, 200, 10))+list(np.arange(210, 300, 10))+[600, 700, 800, 900]
+    lmajor=[50, 100, 150, 200, 300, 500, 1000]
+    lminor=[40, 60, 70, 80, 90]+list(np.arange(110, 150, 10))+list(np.arange(160, 200, 10))+list(np.arange(210, 300, 10))+[400, 600, 700, 800, 900]
     #taxe.set_xscale('function', functions=(forlog, baclog))
     taxe.xaxis.set_major_formatter(tk.NullFormatter())
     taxe.xaxis.set_minor_formatter(tk.NullFormatter())
@@ -245,16 +247,16 @@ def create_BOXES(gdx=BOX_DNFO['gdx'], GDX=BOX_DNFO['GDX'], threshold=BOX_DNFO['t
     return NEW_BOXES, NEW_GRIDS, LATS
 
 #fourier_analysis.test_cycle(dates=rank_histogram.create_dates(20210609, 20210630,7), var='SST', GDX=900, gdx=10, LL_SW=(-165, 72) )  # Beaufort Sea for Charlie.
-def read_field(expt, date, var, ddir=mir5, file_pre='ORCA025-CMC-ANAL_1d_'):
+def read_field(expt, date, var, ddir=mir5, file_pre='ORCA025-CMC-ANAL_1d_', ensembles=[]):
     date = check_date.check_date(date, outtype=datetime.datetime)
     if ( var == 'D20' ):
-        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_')
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='T', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=ensembles)
     elif ( ( var == 'R75' ) or  ( var == 'R3C' ) ):
-        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='SST', file_pre='ORCA025-CMC-ANAL_1d_')
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld='SST', file_pre='ORCA025-CMC-ANAL_1d_', ensembles=ensembles)
         nx, ny = np.squeeze(ETFLD[0]).shape
         ETFLD = [ np.random.randn(nx,ny) for eTFLD in ETFLD ]
     else:
-        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_')
+        lone, late, ETFLD = read_dia.read_ensemble(ddir, 'GIOPS_T', date, fld=var, file_pre='ORCA025-CMC-ANAL_1d_', ensembles=ensembles)
     ESST = [ np.squeeze(eTFLD/1) for eTFLD in ETFLD]
     if ( var == 'T' ):
         level=22
@@ -294,7 +296,7 @@ def call_shapiro(fld, npass):
     Ffld, __ = shapiro.shapiro2D(fld, npass=npass)
     return Ffld    
 
-def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST', gdx=25.0, GDX=2500, LL_SW=(-172, 0) ):
+def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST', gdx=25.0, GDX=2500, LL_SW=(-172, 0), ensembles=[] ):
     oar=var
     if ( var == 'T' ): oar='T100'
     tmask = np.squeeze(read_grid.read_mask(var='tmask'))
@@ -326,7 +328,7 @@ def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST
     for idate, date in enumerate(dates):
         print(date)
         MSST = sum(ESST)/ne
-        MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var)
+        MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var, ensembles=ensembles)
         ne = len(ESST)
 
         if ( idate == 0 ):
@@ -369,7 +371,7 @@ def test_cycle(dates=rank_histogram.create_dates(20210609, 20220601,7), var='SST
 
 # Suspect I will not be able to cycle both dates and boxes.  Get them working first -- and then we will likely need intermediate output.   
 
-def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO):
+def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, ensembles=[]):
     datestr = check_date.check_date(date, outtype=str)
     outdir='BOX_'+datestr+'/'
     rc=subprocess.call(['mkdir', outdir])
@@ -402,7 +404,7 @@ def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
     clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     ncol=len(clr)
 
-    MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var)
+    MSST, ESST, (lone, late) = read_field('GIOPS_T', date, var, ensembles=ensembles)
     ne = len(ESST)
 
     fft_giops.pcolormesh_with_box(lone, late, MSST, levels=None, ticks=None, project='PlateCarree',box=[-180, 180, -90, 90], obar='horizontal', plot_boxes=BOXES, outfile=outdir+oar+'.png')
@@ -573,7 +575,7 @@ def box_cycle_orig(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
     #return kvals, Mbins, Ebins, Mbins_list, Ebins_list   
     return kwave, PSA_fulllist, PSB_fulllist
 
-def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='nearest'):
+def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='nearest', ensembles=[], odir='BOX.S/'):
     datestr = check_date.check_date(date, outtype=str)
     outdir='BOX.S_'+datestr+'/'
     rc=subprocess.call(['mkdir', outdir])
@@ -599,7 +601,7 @@ def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, me
     clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     ncol=len(clr)
 
-    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var)
+    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var, ensembles=ensembles)
     ne = len(ESST)
 
     gig, bx = plt.subplots()
@@ -676,11 +678,11 @@ def box_cycle(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, me
     PSB_array = np.array(PSB_fulllist)
     print(PSA_array.shape)
     print(PSB_array.shape)
-    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX.S/'+var+'_psd_'+datestr+'.nc')
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], odir+var+'_psd_'+datestr+'.nc')
    
     return kwave, PSA_fulllist, PSB_fulllist
 
-def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='2sweep'):
+def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNFO, method='2sweep', ensembles=[], odir='BOX/'):
     datestr = check_date.check_date(date, outtype=str)
     outdir='BOX_'+datestr+'/'
     rc=subprocess.call(['mkdir', outdir])
@@ -706,7 +708,7 @@ def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
     clr = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     ncol=len(clr)
     
-    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var)
+    MSST, ESST, LONLAT = read_field('GIOPS_T', date, var, ensembles=ensembles)
     ne = len(ESST)
     
     gig, bx = plt.subplots()
@@ -793,11 +795,11 @@ def box_cycle_fast(date=datetime.datetime(2021,6,2), var='SST', BOX_INFO=BOX_DNF
     PSB_array = np.array(PSB_fulllist)
     print(PSA_array.shape)
     print(PSB_array.shape)
-    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], 'BOX/'+var+'_psd_'+datestr+'.nc')
+    write_nc_grid.write_nc_1d([kwave, PSA_array, PSB_array], ['kwave', 'psd_mean', 'psd_member'], odir+var+'_psd_'+datestr+'.nc')
    
     return kwave, PSA_fulllist, PSB_fulllist
 
-def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outdir='BOX/'):
+def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outdir='BOX/', indir2=None):
     host=find_hall.get_host()
     usetex = False
     if ( host[0:4] == 'hpcr' ):
@@ -807,15 +809,18 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     units=''
     if ( var == 'K15' or var == 'U15' or var == 'V15' ):  
         field_id = ' velocity '
-        units="( (m/s)"+su2+" m )"
+        units="( (m/s)^2 m )"
+        units="( (m/s)"+su2+udot+"m )"
         if usetex:  units="( (m/s)$^2 \cdot$ m )"
     if ( var == 'KE0' or var == 'SSU' or var == 'SSV' ):  
         field_id = ' velocity '
+        units="( (m/s)^2 m )"
         units="( (m/s)"+su2+udot+"m )"
-        units="( (m/s)$^2 \cdot$m )"
+        if usetex:  units="( (m/s)$^2 \cdot$ m )"
     if ( var == 'TAUK' ): 
         field_id = ' wind stress '
         units="( (N/m^2)"+su2+udot+"m )"
+        units="( (N/m"+su2+")"+su2+udot+"m )"
         if usetex: units="( (N/m$^2$)$^2 \cdot$m )"
     if ( var == 'SST' or var == 'T100' or var == 'T'): 
         field_id = ' temperature '
@@ -847,7 +852,16 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     nclr = len(clr)
 
     oar=var
+    var_longname=var
     if ( var == 'T' ): oar='T100'
+    if ( var == 'T' ): var_longname='Temperature at 100m'
+    if ( var == 'K15' ): var_longname='Kinetic Energy at 15m'
+    if ( var == 'U15' ): var_longname='Zonal Velocity at 15m'
+    if ( var == 'V15' ): var_longname='Meridonal Velocity at 15m'
+    if ( var == 'KE0' ): var_longname='Surface Kinetic Energy'
+    if ( var == 'TAUK' ): var_longname='Surface Wind Stress'
+    if ( var == 'SST' ): var_longname='Sea Surface Temperature'
+
     nbox = len(BOXES)
     print('NUMBER OF BOXES', nbox)
 
@@ -873,6 +887,11 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           ncfile = indir+'V15'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          if ( indir2 != None ):
+              ncfile = indir2+'U15'+'_psd_'+datestr+'.nc'
+              [upsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
+              ncfile = indir2+'V15'+'_psd_'+datestr+'.nc'
+              [vpsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         elif ( var == 'KE0' ):
@@ -880,6 +899,11 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           ncfile = indir+'SSV'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          if ( indir2 != None ):
+              ncfile = indir2+'SSU'+'_psd_'+datestr+'.nc'
+              [upsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
+              ncfile = indir2+'SSV'+'_psd_'+datestr+'.nc'
+              [vpsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         elif ( var == 'TAUK' ):
@@ -887,11 +911,19 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
           kwave_date, upsd_mean, upsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
           ncfile = indir+'TAUY'+'_psd_'+datestr+'.nc'
           kwave_date, vpsd_mean, vpsd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          if ( indir2 != None ):
+              ncfile = indir2+'TAUX'+'_psd_'+datestr+'.nc'
+              [upsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
+              ncfile = indir2+'TAUY'+'_psd_'+datestr+'.nc'
+              [vpsd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
           psd_mean = 0.5 * (upsd_mean+vpsd_mean)
           psd_memb = 0.5 * (upsd_memb+vpsd_memb)
         else:
           ncfile = indir+var+'_psd_'+datestr+'.nc'
           kwave_date, psd_mean, psd_memb = write_nc_grid.read_nc_1d(ncfile, ['kwave', 'psd_mean', 'psd_member'])
+          if ( indir2 != None ):
+              ncfile = indir2+var+'_psd_'+datestr+'.nc'
+              [psd_memb] = write_nc_grid.read_nc_1d(ncfile, ['psd_member'])
       
         # SMALLEST WAVELENGTH SHUULD BE TWICE THE GRID SPACE.  fftfreq needs to be normalized (N)/(N-1)
         ## REMOVE IFF DONE IN CYCLE_BOX  !!!!!
@@ -1002,6 +1034,8 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
             VKMN.append(iKMN[ilat])
             VBRT.append(iBRT[ilat])
                       
+    FONT = FontProperties(weight='bold', size=14)
+    font = FontProperties(weight='bold', size=12)
     fig, ax = plt.subplots()
     #ax.plot(date_list, KT05, linestyle='--', label='Ratio = 0.5')
     ax.plot(date_list, KTMN, linestyle='-', label='Minimum Ratio') 
@@ -1023,8 +1057,12 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         br.semilogx(kwave[1:], iPSM[ilat][1:]/iPSE[ilat][1:], linestyle=linestyle, color=clr[ilat%nclr], label=str(lat))
     br.legend()
     br = special_xaxis(br)
-    br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio PSD(Ensemble Mean)/ PSD(Ensemble Members)")
+    br.set_ylim(0, 1.0)
+    br.set_title(var_longname, fontsize=18, weight='bold')
+    br.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    #br.set_ylabel("Ratio PSD(Ensemble Mean)/ PSD(Ensemble Members)")
+    br.set_ylabel("Ratio of PSDs", fontsize=14, weight='bold')
+    br.tick_params(axis='both', which='major', labelsize=14)
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.lat'+".png"
@@ -1071,29 +1109,44 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
         br.semilogx(kwave[1:], jPSM[jlat][1:]/jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
         be.loglog(kwave[1:], jPSE[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
         bm.loglog(kwave[1:], jPSM[jlat][1:], linestyle=linestyle, color=cl5[jlat%5], label=label)
-    br.legend()
+    MMPSD='Mean PSD of Ensemble Members'
+    if ( indir2 == 'BOX.N0/' ): MMPSD='PSD of Control Member'
     br = special_xaxis(br)
-    br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
+    br.set_ylim(0, 1.0)
+    br.set_yticks(np.arange(0,1.1,0.1))
+    br.set_title(var_longname, fontsize=18, weight='bold')
+    br.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    #br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
+    br.set_ylabel("Ratio of PSDs", fontsize=14, weight='bold')
+    br.tick_params(axis='both', which='major', labelsize=14)
     br.grid(linestyle=':', color='gray', which='both')
+    if ( var == 'TAUK' ): 
+        br.legend(loc='upper center', prop=font)
+    else:
+        br.legend(loc='upper right', prop=font)
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.Lat'+".png"
     gir.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gir)
-    be.legend()
     be = special_xaxis(be)
-    be.set_xlabel("wavelength (km)")
-    be.set_ylabel("PSD "+field_id+units)
+    be.set_title(var_longname, fontsize=18, weight='bold')
+    be.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    be.set_ylabel(MMPSD+" "+field_id+units, fontsize=14, weight='bold')
     be.grid(linestyle=':', color='gray', which='both')
+    be.legend(loc='lower left', prop=font)
+    be.tick_params(axis='both', which='major', labelsize=14)
     gie.tight_layout()
     ofile=outdir+"PSW_loglogE."+oar+'.Lat'+".png"
     gie.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gie)
-    bm.legend()
     bm = special_xaxis(bm)
-    bm.set_xlabel("wavelength (km)")
-    bm.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
+    bm.set_title(var_longname, fontsize=18, weight='bold')
+    bm.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    bm.set_ylabel("Ensemble Mean PSD "+field_id+units)
+    bm.tick_params(axis='both', which='major', labelsize=14)
     bm.grid(linestyle=':', color='gray', which='both')
+    bm.legend(loc='lower left', prop=font)
+    bm.tick_params(axis='both', which='major', labelsize=14)
     gim.tight_layout()
     ofile=outdir+"PSW_loglogM."+oar+'.Lat'+".png"
     gim.savefig(ofile, dpi = 300, bbox_inches = "tight")
@@ -1114,12 +1167,13 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     
     gig, bx = plt.subplots()
     gir, br = plt.subplots()
-    bx.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='Ensemble Mean', linewidth=2.0)
-    bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label='Ensemble Member', linewidth=2.0)
+    bx.loglog(kwave[1:], PSM[1:], linestyle='-', color='k', label='PSD of Ensemble Mean', linewidth=2.0)
+    bx.loglog(kwave[1:], PSE[1:], linestyle='--', color='k', label=MMPSD, linewidth=2.0)
     bx.loglog(kwave[km3range], Km3[km3range], linestyle=':', color='r', linewidth=2.0)#, label=labkm3)
     bx.loglog(kwave[km4range], Km4p5[km4range], linestyle=':', color='b', linewidth=2.0)#, label=labkm4p5)
-    br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='Ensemble Mean/Ensemble Members')
-    bx.legend()
+    br.semilogx(kwave[1:], PSM[1:]/PSE[1:], linestyle='-', color='k', label='PSD of Ensemble Mean / '+MMPSD)
+    bx.legend(loc='lower left', prop=FONT)
+    bx.tick_params(axis='both', which='major', labelsize=14)
     # label k-3 and k-4.5 lines in place.  May need to offset image from coordinates given.
     km3box = OffsetImage(imgkm3, zoom=0.50)
     km4box = OffsetImage(imgkm4p5, zoom=0.50)
@@ -1129,18 +1183,25 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     bx.add_artist(km4art)
     
     bx = special_xaxis(bx)
-    bx.set_xlabel("wavelength (km)")
-    bx.set_ylabel("PSD"+field_id+units)
+    bx.set_title(var_longname, fontsize=18, weight='bold')
+    bx.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    bx.set_ylabel("PSD"+field_id+units, fontsize=14, weight='bold')
+    bx.tick_params(axis='both', which='major', labelsize=14)
     bx.grid(linestyle=':', color='gray', which='both')
     gig.tight_layout()
     print(outdir, oar)
     ofile=outdir+"PSW_loglog."+oar+'.glb'+".png"
     gig.savefig(ofile, dpi = 300, bbox_inches = "tight")
     plt.close(gig)
-    br.legend()
     br = special_xaxis(br)
-    br.set_xlabel("wavelength (km)")
-    br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
+    br.set_title(var_longname, fontsize=18, weight='bold')
+    br.legend(loc='lower left', prop=FONT)
+    br.set_ylim(0, 1.0)
+    br.set_yticks(np.arange(0,1.1,0.1))
+    br.set_xlabel("wavelength (km)", fontsize=14, weight='bold')
+    #br.set_ylabel("Ratio PSD(Ensemble Mean) / PSD(Ensemble Members)")
+    br.set_ylabel("Ratio of PSDs", fontsize=14, weight='bold')
+    br.tick_params(axis='both', which='major', labelsize=14)
     br.grid(linestyle=':', color='gray', which='both')
     gir.tight_layout()
     ofile=outdir+"PSW_ratio."+oar+'.glb'+".png"
@@ -1171,7 +1232,10 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH[izero] = 0.0
     print('Max/mean length 05', np.max(LENGTH), np.mean(LENGTH))
     latloc=[-75, -45, -15, 15, 45, 75]
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.4*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc, lonloc=None)
+    lonloc=[-90, 0, 90]
+    cbar_length = ['lengthscale (km)', 14, 'bold']
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.4*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOX05_'+oar+'.png', alpha=1.0, 
+                      add_gridlines=True, latloc=latloc, lonloc=lonloc, cbar_label=cbar_length, title=var_longname, title_weight='bold')
 
     izero = np.where(KMN == 0 )
     KFN = KMN[:]
@@ -1180,12 +1244,15 @@ def cycle_dates_done(date_list, var='U15', BOX_INFO=BOX_DNFO, indir='BOX/', outd
     LENGTH = 1.0 / KFN
     LENGTH[izero] = 0.0
     print('Max/mean length MN', np.max(LENGTH), np.mean(LENGTH))
-    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc)
+    ctile.cplot_tiles(BOXES, LENGTH, SCALE=[2*gdx, 0.2*GDX], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXMN_'+oar+'.png', alpha=1.0, 
+                      add_gridlines=True, latloc=latloc, lonloc=lonloc, cbar_label=cbar_length, title=var_longname, title_weight='bold')
 
     #KFN = BRT[:]
     #LENGTH = KFN
     print('Min/Max/mean ratio', np.min(BRT), np.max(BRT), np.mean(BRT))
-    ctile.cplot_tiles(BOXES, BRT, SCALE=[0, 0.4], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXRT_'+oar+'.png', alpha=1.0, add_gridlines=True, latloc=latloc)
+    cbar_length = ['minimum ratio', 14, 'bold']
+    ctile.cplot_tiles(BOXES, BRT, SCALE=[0, 0.4], cmap='YlGnBu', project='PlateCarree', outfile=outdir+'BOXRT_'+oar+'.png', alpha=1.0, 
+                      add_gridlines=True, latloc=latloc, lonloc=lonloc, cbar_label=cbar_length, title=var_longname)
 
     print('COMPLETED PLOTING')
     return kwave, psd_mean, psd_memb, K05

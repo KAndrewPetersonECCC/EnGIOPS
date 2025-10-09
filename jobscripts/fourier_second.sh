@@ -17,17 +17,23 @@ import numpy as np
 import datetime
 import check_date
 
+import find_hall
 import fourier_analysis
 import rank_histogram
 
+host=find_hall.get_host()
+outd='BOX/PLOTS/'
+if ( host[0:4] == 'hpcr' ):
+     outd='BOX/PLOTT/'
+
 dates=rank_histogram.create_dates(20210609, 20220601, 7)
-fourier_analysis.cycle_dates_done(dates, var='K15', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='KE0', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='TAUK', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='Tsppt', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='MLD', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='SST', indir='BOX/', outdir='BOX/')
-fourier_analysis.cycle_dates_done(dates, var='T', indir='BOX/', outdir='BOX/')
+fourier_analysis.cycle_dates_done(dates, var='K15', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='KE0', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='TAUK', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='Tsppt', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='MLD', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='SST', indir='BOX/', outdir=outd)
+fourier_analysis.cycle_dates_done(dates, var='T', indir='BOX/', outdir=outd)
 
 
 EOP

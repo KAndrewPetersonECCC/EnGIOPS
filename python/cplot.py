@@ -30,16 +30,22 @@ def make_projections(**kwargs):
     pcarree=ccrs.PlateCarree()
     return projections, pcarree
 
+cbar_label_default = ['', 12, 'normal']
 def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='PlateCarree', outfile='plt.png', 
                box=[-180, 180, -90, 90], make_global=False, title='', suptitle=None, landcover=None, 
                cbar=True, obar='vertical', fontsizes=None, marks=None, add_gridlines=False, latloc=None, lonloc=None, 
-               landcolor=None, **kwargs):
+               landcolor=None, cbar_label=cbar_label_default, **kwargs):
 
+    if ( isinstance(cbar_label, str) ): cbar_label - [cbar_label]
+    if ( len(cbar_label) == 0 ): cbar=cbar_label_default
+    if ( len(cbar_label) == 1 ): cbar_label = cbar_label+cbar_label_default[1:]
+    if ( len(cbar_label) == 2 ): cbar_label = cbar_label+cbar_label_default[2:]
     title_fontsize = fontsizes
     cbar_fontsize = fontsizes
     fontsize=None
     if ( isinstance(fontsizes, int) or isinstance(fontsizes, float) ):
         fontsize=fontsizes
+        fontsizes = [fontsize, fontsize]
     if ( not isinstance(fontsizes, type(None)) ):
         if ( len(fontsizes) == 2 ):
             title_fontsize = fontsizes[0]
@@ -85,6 +91,7 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
         #print('cbar', cbar_fontsize)
         cbar_fig=fig.colorbar(mesh, format='%.3f',orientation=obar, ticks=ticks)
         cbar_fig.ax.tick_params(labelsize=cbar_fontsize)
+        cbar_fig.set_label(label=cbar_label[0], size=cbar_label[1], weight=cbar_label[2])
     ax.coastlines()
     if ( not isinstance(landcolor, type(None) ) ):
         ax.add_feature(cfeature.NaturalEarthFeature('physical', 'land', '10m', edgecolor='k', facecolor=landcolor, alpha=0.4))
@@ -98,8 +105,8 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
         gl.ylocator = mticker.FixedLocator(latloc)
         #gl.xformatter = LONGITUDE_FORMATTER
         #gl.yformatter = LATITUDE_FORMATTER
-        gl.xlabel_style = {'color': 'black', 'weight': 'normal'}
-        gl.xyabel_style = {'color': 'black', 'weight': 'normal'}
+        gl.xlabel_style = {'color': 'black', 'weight': 'bold', 'fontsize': 14}
+        gl.ylabel_style = {'color': 'black', 'weight': 'bold', 'fontsize': 14}
     #print('title', title_fontsize)
     if ( suptitle != None ): fig.suptitle(suptitle, fontsize=title_fontsize)
     ax.set_title(title, fontsize=title_fontsize)

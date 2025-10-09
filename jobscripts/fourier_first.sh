@@ -4,6 +4,7 @@
 
 ## DEFAULTS
 SLOW=False
+CNTL=False
 
 ## GET arguments
 for i in "$@"
@@ -15,6 +16,10 @@ case $i in
     ;;
     -s|--slow)
     SLOW=True
+    shift # past argument=value
+    ;;
+    -c|--cntl|--control)
+    CNTL=True
     shift # past argument=value
     ;;
 esac
@@ -34,12 +39,12 @@ DATE=${DATE:0:8}
 WDIR=/home/dpe000/EnGIOPS
 cd ${WDIR}
 
-#for VAR in SST T SSU SSV MLD U15 V15 TAUX TAUY Tsppt Ssppt; do 
+for VAR in SST T SSU SSV MLD U15 V15 TAUX TAUY Tsppt Ssppt; do 
 #for VAR in TAUX TAUY ; do 
-for VAR in R75 ; do 
+#for VAR in R75 ; do 
 
-BJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.sh
-PJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}.py
+BJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}${CNTL:0:1}.sh
+PJOB=/home/dpe000/EnGIOPS/JOBS/fourier_${VAR}_${DATE}_${SLOW:0:1}${CNTL:0:1}.py
 SJOB="ord_soumet ${BJOB} -cpus 80 -cm 180000M -t 21600 -shell=/bin/bash"
 
 cat > ${BJOB} << EOB
@@ -67,11 +72,21 @@ import check_date
 import fourier_analysis
 
 slow=${SLOW}
+cntl=${CNTL}
 date=check_date.check_date(${DATE}, outtype=datetime.datetime)
+ensembles=[]
 if ( slow ):
-    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle(date=date, var='${VAR}')
+    odir='BOX.S/'
+    if ( cntl ):
+        odir='BOX.S0/'
+        ensembles=[0]
+    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle(date=date, var='${VAR}', ensembles=ensembles, odir=odir)
 else:
-    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle_fast(date=date, var='${VAR}')
+    odir='BOX.N/'
+    if ( cntl ):
+        odir='BOX.N0/'
+        ensembles=[0]
+    kwave, PSA_list, PSB_list = fourier_analysis.box_cycle_fast(date=date, var='${VAR}', ensembles=ensembles, odir=odir)
  
 print('kwave')
 print(kwave)

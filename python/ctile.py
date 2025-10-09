@@ -73,7 +73,13 @@ def simple_test(BOXES, project='PlateCarree'):
     plt.close(fig)
     return
 
-def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None, alpha=0.65, add_gridlines=False, latloc=None, lonloc=None):
+cbar_label_default = ['', 12, 'normal']
+def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree', outfile='tile.png', ticks=None, alpha=0.65, 
+                add_gridlines=False, latloc=None, lonloc=None, landcolor=None, title='', suptitle=None, title_fontsize=16, title_weight='normal', cbar_label=cbar_label_default):
+    if ( isinstance(cbar_label, str) ): cbar_label - [cbar_label]
+    if ( len(cbar_label) == 0 ): cbar=cbar_label_default
+    if ( len(cbar_label) == 1 ): cbar_label = cbar_label+cbar_label_default[1:]
+    if ( len(cbar_label) == 2 ): cbar_label = cbar_label+cbar_label_default[2:]
     if ( isinstance(SCALE, type(None)) ):
        smin = 0
        smax = max(COLORS)
@@ -103,8 +109,12 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
     #sm.set_clim(norm=norm)
     #print('colorbar', smin, smax, sm._A)
     cb = fig.colorbar(sm, ax=ax, orientation='horizontal')
+    cb.set_label(label=cbar_label[0], size=cbar_label[1], weight=cbar_label[2])
+    cb.ax.tick_params(labelsize=cbar_label[1])
     if ( not isinstance(ticks, type(None)) ):
         cb.set_ticks(ticks)
+    for this_tick in cb.ax.get_xticklabels():
+        this_tick.set_fontweight(cbar_label[2])    
     ax.coastlines()
     
     if ( not isinstance(landcolor, type(None) ) ):
@@ -120,8 +130,10 @@ def cplot_tiles(BOXES, COLORS, SCALE=None, cmap='seismic', project='PlateCarree'
         gl.ylocator = mticker.FixedLocator(latloc)
         #gl.xformatter = LONGITUDE_FORMATTER
         #gl.yformatter = LATITUDE_FORMATTER
-        gl.xlabel_style = {'color': 'black', 'weight': 'normal'}
-        gl.xyabel_style = {'color': 'black', 'weight': 'normal'}
+        gl.xlabel_style = {'color': 'black', 'weight': 'bold', 'fontsize': 14}
+        gl.ylabel_style = {'color': 'black', 'weight': 'bold', 'fontsize': 14}
+    if ( suptitle != None ): fig.suptitle(suptitle, fontsize=title_fontsize)
+    ax.set_title(title, fontsize=title_fontsize, weight=title_weight)
     fig.savefig(outfile,bbox_inches='tight')
     plt.close(fig)
 

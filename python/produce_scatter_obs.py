@@ -174,10 +174,17 @@ def scatter_SLA_for_day(date, pdir='OBSS/'):
 
     colors=['b','r', 'g', 'orange', 'cyan', 'magenta']
     fig, axe = ini_scatter()
+    labels = [str(iset) for iset in isets]
     for iis, iset in enumerate(isets):
-        scat=add_scatter(fig, axe, ola_functions.subset_SSH_dataframe(IS_DAY, iset), color=colors[iis%4], label=str(iset), lonname='Lon', latname='Lat', s=1)
+        if ( int(iset) == 11 ): labels[iis] = 'c2'
+        if ( int(iset) == 13 ): labels[iis] = 'al'
+        if ( int(iset) == 15 ): labels[iis] = 'j3'
+        if ( int(iset) == 17 ): labels[iis] = 's3a'
+        if ( int(iset) == 18 ): labels[iis] = 's3b'
+    for iis, iset in enumerate(isets):
+        scat=add_scatter(fig, axe, ola_functions.subset_SSH_dataframe(IS_DAY, iset), color=colors[iis%6], label=labels[iis], lonname='Lon', latname='Lat', s=1)
     outfile=pdir+'/'+'SLA'+'observations_'+date_dstr+'.png'
-    title='SLA'+' Observations for '+date_dstr
+    title='SLA'+' Observations for 7 days preceding '+date_dstr
     fin_scatter(fig, axe, title=title, output=outfile)
     return
 

@@ -1,3 +1,4 @@
+from importlib import reload
 import matplotlib.pyplot as plt
 import matplotlib.colors as clr
 import matplotlib.ticker as mticker 
@@ -59,6 +60,10 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
     fig = plt.figure()
     projections, pcarree = make_projections(**kwargs)
     ax = plt.subplot(projection=projections[project])
+    if ( make_global ):
+        ax.set_global()
+    else:
+        ax.set_extent(box, crs=ccrs.PlateCarree())
 
     if ( isinstance(levels, type(None) ) ):
         norm=None
@@ -66,14 +71,11 @@ def pcolormesh(lon, lat, field, levels=None, ticks=None, cmap=dmap, project='Pla
         Ncolors=plt.get_cmap(cmap).N
         norm = clr.BoundaryNorm(levels, ncolors=Ncolors, clip=False, extend='both')
 
-    if ( make_global ):
-        ax.set_global()
-    else:
-        ax.set_extent(box, crs=ccrs.PlateCarree())
     if ( isinstance(norm, type(None) ) ):
         mesh = ax.pcolormesh(lon, lat, field, cmap=cmap,transform=pcarree)
     else:
         mesh = ax.pcolormesh(lon, lat, field, norm=norm, cmap=cmap, transform=pcarree)
+
     #mesh.set_cmap(cmap)
     if ( marks ):
         Xmark = marks[0]

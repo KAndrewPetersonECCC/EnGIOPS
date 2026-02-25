@@ -14,7 +14,7 @@ from scipy import signal
 import multiprocessing
 import itertools
 from functools import partial
-from multiprocessing import active_children
+#from multiprocessing import active_children
 
 sys.path.insert(0, '/home/dpe000/EnGIOPS/python')
 import read_dia

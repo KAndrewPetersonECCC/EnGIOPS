@@ -1,5 +1,6 @@
 import datetime
 import pytz
+import numpy as np
 
 def check_date_list(datelist, outtype=str, dtlen=8):
     if ( not isinstance(datelist, list) ):
@@ -11,6 +12,7 @@ def check_date_list(datelist, outtype=str, dtlen=8):
     
 def check_date(date, outtype=str, dtlen=8):
     datestr=None
+    if ( isinstance(date, np.datetime64) ): date=date.astype(datetime.datetime)
     if ( (outtype==str) or (outtype==int) ):
       if ( isinstance(date, datetime.datetime) or isinstance(date, datetime.date) ):
         if ( dtlen == 8 ):  
